@@ -13,4 +13,10 @@ public interface DepartmentRepository extends JpaRepository<Department, UUID> {
 
     List<Department> findByHospitalId(UUID hospitalId);
 
+
+    boolean existsByNameAndHospitalId(
+            String name,
+            UUID hospitalId
+    );
+
 }
