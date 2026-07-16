@@ -31,19 +31,31 @@ public class Doctor extends BaseEntity {
     private String qualification;
 
 
+    private String phone;
+
+
+    @Column(unique = true)
+    private String email;
+
+
     private BigDecimal consultationFee;
 
 
-    private String languages;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(
+            name = "department_id",
+            nullable = false
+    )
+    private Department department;
+
 
 
     @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
+    @JoinColumn(
+            name = "user_id",
+            nullable = false
+    )
     private User user;
-
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "department_id", nullable = false)
-    private Department department;
 
 }
