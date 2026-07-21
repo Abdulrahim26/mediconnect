@@ -28,13 +28,12 @@ public class AuthController {
 
     @PostMapping("/register")
     public ResponseEntity<String> register(
-            @Valid @RequestBody RegisterRequest request
-    ){
+            @Valid @RequestBody RegisterRequest request) {
 
-        return ResponseEntity.ok(
-                authService.register(request)
-        );
+        return ResponseEntity.ok(authService.register(request));
     }
+
+
 
 
 
