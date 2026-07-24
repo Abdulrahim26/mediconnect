@@ -4,6 +4,8 @@ import com.mediconnect.mediconnectapi.dto.request.CreateAppointmentRequest;
 import com.mediconnect.mediconnectapi.dto.response.AppointmentResponse;
 import com.mediconnect.mediconnectapi.entity.*;
 import com.mediconnect.mediconnectapi.entity.enums.AppointmentStatus;
+import com.mediconnect.mediconnectapi.exception.BadRequestException;
+import com.mediconnect.mediconnectapi.exception.ResourceNotFoundException;
 import com.mediconnect.mediconnectapi.repository.AppointmentRepository;
 import com.mediconnect.mediconnectapi.repository.DoctorRepository;
 import com.mediconnect.mediconnectapi.repository.PatientRepository;
@@ -190,6 +192,40 @@ public class AppointmentServiceImpl implements AppointmentService {
         }
 
         appointment.setStatus(AppointmentStatus.CANCELLED);
+        Appointment saved = appointmentRepository.save(appointment);
+
+        return mapToResponse(saved);
+    }
+
+    @Override
+    public AppointmentResponse doctorCancelAppointment(UUID appointmentId) { // ✅ NEW
+
+        String email = SecurityContextHolder
+                .getContext()
+                .getAuthentication()
+                .getName();
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+
+        Doctor doctor = doctorRepository.findByUserId(user.getId())
+                .orElseThrow(() -> new ResourceNotFoundException("Doctor profile not found"));
+
+        Appointment appointment = appointmentRepository
+                .findByIdAndDoctorId(
+                        appointmentId,
+                        doctor.getId()
+                )
+                .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
+
+        if (appointment.getStatus() != AppointmentStatus.APPROVED) {
+            throw new BadRequestException(
+                    "Only approved appointments can be cancelled by the doctor."
+            );
+        }
+
+        appointment.setStatus(AppointmentStatus.CANCELLED);
+
         Appointment saved = appointmentRepository.save(appointment);
 
         return mapToResponse(saved);

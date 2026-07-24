@@ -28,6 +28,8 @@ public interface AppointmentService {
 
     AppointmentResponse cancelAppointment(UUID appointmentId);
 
+    AppointmentResponse doctorCancelAppointment(UUID appointmentId); // ✅ NEW
+
     AppointmentResponse rescheduleAppointment(
             UUID appointmentId,
             CreateAppointmentRequest request
