@@ -11,7 +11,6 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
-
 public interface AppointmentRepository extends JpaRepository<Appointment, UUID> {
 
     boolean existsByDoctorIdAndAppointmentDateAndAppointmentTime(
@@ -50,21 +49,30 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
 
     long countByDoctorId(UUID doctorId);
 
-
     long countByDoctorIdAndStatus(
             UUID doctorId,
             AppointmentStatus status
     );
-
 
     List<Appointment> findByDoctorIdAndAppointmentDate(
             UUID doctorId,
             LocalDate appointmentDate
     );
 
-
     List<Appointment> findByDoctorIdOrderByAppointmentDateAsc(
             UUID doctorId
+    );
+
+    // ✅ Patient Statistics Methods
+    long countByPatientId(UUID patientId);
+
+    long countByPatientIdAndStatus(
+            UUID patientId,
+            AppointmentStatus status
+    );
+
+    List<Appointment> findByPatientIdOrderByAppointmentDateDesc(
+            UUID patientId
     );
 
     // ✅ Hospital Dashboard Statistics Methods
