@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
+import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -132,6 +133,105 @@ public class AppointmentServiceImpl implements AppointmentService {
         Appointment updatedAppointment = appointmentRepository.save(appointment);
 
         return mapToResponse(updatedAppointment);
+    }
+
+    @Override
+    public List<AppointmentResponse> getMyAppointments() {
+        Patient patient = getLoggedInPatient();
+
+        List<Appointment> appointments = appointmentRepository
+                .findByPatientIdOrderByAppointmentDateAscAppointmentTimeAsc(
+                        patient.getId()
+                );
+
+        return appointments.stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<AppointmentResponse> getUpcomingAppointments() {
+        Patient patient = getLoggedInPatient();
+
+        return appointmentRepository
+                .findByPatientIdAndAppointmentDateAfterOrderByAppointmentDateAsc(
+                        patient.getId(),
+                        LocalDate.now()
+                )
+                .stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<AppointmentResponse> getAppointmentHistory() {
+        Patient patient = getLoggedInPatient();
+
+        return appointmentRepository
+                .findByPatientIdAndStatus(
+                        patient.getId(),
+                        AppointmentStatus.COMPLETED
+                )
+                .stream()
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public AppointmentResponse cancelAppointment(UUID appointmentId) {
+        Patient patient = getLoggedInPatient();
+
+        Appointment appointment = appointmentRepository
+                .findByIdAndPatientId(appointmentId, patient.getId())
+                .orElseThrow(() -> new RuntimeException("Appointment not found"));
+
+        if (appointment.getStatus() == AppointmentStatus.COMPLETED) {
+            throw new RuntimeException("Completed appointment cannot be cancelled");
+        }
+
+        appointment.setStatus(AppointmentStatus.CANCELLED);
+        Appointment saved = appointmentRepository.save(appointment);
+
+        return mapToResponse(saved);
+    }
+
+    @Override
+    public AppointmentResponse rescheduleAppointment(
+            UUID appointmentId,
+            CreateAppointmentRequest request
+    ) {
+        Patient patient = getLoggedInPatient();
+
+        Appointment appointment = appointmentRepository
+                .findByIdAndPatientId(appointmentId, patient.getId())
+                .orElseThrow(() -> new RuntimeException("Appointment not found"));
+
+        if (appointment.getStatus() == AppointmentStatus.COMPLETED) {
+            throw new RuntimeException("Completed appointment cannot be rescheduled");
+        }
+
+        appointment.setAppointmentDate(request.getAppointmentDate());
+        appointment.setAppointmentTime(request.getAppointmentTime());
+        appointment.setReason(request.getReason());
+        appointment.setStatus(AppointmentStatus.PENDING);
+
+        Appointment saved = appointmentRepository.save(appointment);
+
+        return mapToResponse(saved);
+    }
+
+    // ✅ HELPER METHOD: Get logged-in patient
+    private Patient getLoggedInPatient() {
+        String email = SecurityContextHolder
+                .getContext()
+                .getAuthentication()
+                .getName();
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> new RuntimeException("User not found"));
+
+        return patientRepository.findByUserId(user.getId())
+                .orElseThrow(() -> new RuntimeException("Patient profile not found"));
     }
 
     // ✅ HELPER METHOD: Get current doctor

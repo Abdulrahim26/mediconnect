@@ -1,6 +1,7 @@
 package com.mediconnect.mediconnectapi.repository;
 
 import com.mediconnect.mediconnectapi.entity.Appointment;
+import com.mediconnect.mediconnectapi.entity.enums.AppointmentStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.LocalDate;
@@ -10,8 +11,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface AppointmentRepository extends JpaRepository<Appointment, UUID> {
-
-    // Existing methods...
 
     boolean existsByDoctorIdAndAppointmentDateAndAppointmentTime(
             UUID doctorId,
@@ -26,5 +25,24 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
     Optional<Appointment> findByIdAndDoctorId(
             UUID appointmentId,
             UUID doctorId
+    );
+
+    List<Appointment> findByPatientIdOrderByAppointmentDateAscAppointmentTimeAsc(
+            UUID patientId
+    );
+
+    Optional<Appointment> findByIdAndPatientId(
+            UUID appointmentId,
+            UUID patientId
+    );
+
+    List<Appointment> findByPatientIdAndAppointmentDateAfterOrderByAppointmentDateAsc(
+            UUID patientId,
+            LocalDate date
+    );
+
+    List<Appointment> findByPatientIdAndStatus(
+            UUID patientId,
+            AppointmentStatus status
     );
 }

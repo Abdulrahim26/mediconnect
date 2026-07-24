@@ -6,6 +6,7 @@ import com.mediconnect.mediconnectapi.dto.response.LoginResponse;
 import com.mediconnect.mediconnectapi.entity.Patient;
 import com.mediconnect.mediconnectapi.entity.Role;
 import com.mediconnect.mediconnectapi.entity.User;
+import com.mediconnect.mediconnectapi.exception.ResourceNotFoundException;
 import com.mediconnect.mediconnectapi.repository.PatientRepository;
 import com.mediconnect.mediconnectapi.repository.RoleRepository;
 import com.mediconnect.mediconnectapi.repository.UserRepository;
@@ -13,6 +14,7 @@ import com.mediconnect.mediconnectapi.security.JwtService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,7 +34,7 @@ public class AuthService {
     public String register(RegisterRequest request) {
 
         Role patientRole = roleRepository.findByName("PATIENT")
-                .orElseThrow(() -> new RuntimeException("PATIENT role not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("PATIENT role not found"));
 
         User user = new User();
         user.setEmail(request.getEmail());
@@ -42,7 +44,7 @@ public class AuthService {
         // Save User first
         userRepository.save(user);
 
-        // ✅ Create Patient linked to User
+        // Create Patient linked to User
         Patient patient = new Patient();
         patient.setFirstName(request.getFirstName());
         patient.setLastName(request.getLastName());
@@ -64,7 +66,7 @@ public class AuthService {
         );
 
         User user = userRepository.findByEmail(request.getEmail())
-                .orElseThrow();
+                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
 
         String token = jwtService.generateToken(
                 user.getEmail(),

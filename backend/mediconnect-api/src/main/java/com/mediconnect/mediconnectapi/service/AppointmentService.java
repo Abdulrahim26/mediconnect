@@ -20,4 +20,16 @@ public interface AppointmentService {
 
     AppointmentResponse completeAppointment(UUID appointmentId);
 
+    List<AppointmentResponse> getMyAppointments();
+
+    List<AppointmentResponse> getUpcomingAppointments();
+
+    List<AppointmentResponse> getAppointmentHistory();
+
+    AppointmentResponse cancelAppointment(UUID appointmentId);
+
+    AppointmentResponse rescheduleAppointment(
+            UUID appointmentId,
+            CreateAppointmentRequest request
+    );
 }
