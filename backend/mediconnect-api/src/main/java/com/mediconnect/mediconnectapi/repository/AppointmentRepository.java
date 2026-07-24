@@ -3,6 +3,7 @@ package com.mediconnect.mediconnectapi.repository;
 import com.mediconnect.mediconnectapi.entity.Appointment;
 import com.mediconnect.mediconnectapi.entity.enums.AppointmentStatus;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
@@ -45,4 +46,19 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
             UUID patientId,
             AppointmentStatus status
     );
+
+    // ✅ Hospital Dashboard Statistics Methods
+    long countByDoctorDepartmentHospitalId(UUID hospitalId);
+
+    long countByDoctorDepartmentHospitalIdAndStatus(
+            UUID hospitalId,
+            AppointmentStatus status
+    );
+
+    @Query("""
+           SELECT COUNT(DISTINCT a.patient.id)
+           FROM Appointment a
+           WHERE a.doctor.department.hospital.id = :hospitalId
+           """)
+    long countDistinctPatientsByHospitalId(UUID hospitalId);
 }

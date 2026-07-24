@@ -17,4 +17,6 @@ public interface DoctorRepository extends JpaRepository<Doctor, UUID> {
 
     List<Doctor> findByDepartmentId(UUID departmentId);
 
+    // ✅ Hospital Dashboard Statistics Method
+    long countByDepartmentHospitalId(UUID hospitalId);
 }
