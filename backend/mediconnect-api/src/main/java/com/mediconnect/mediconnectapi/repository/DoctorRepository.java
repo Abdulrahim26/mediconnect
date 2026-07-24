@@ -1,6 +1,8 @@
 package com.mediconnect.mediconnectapi.repository;
 
 import com.mediconnect.mediconnectapi.entity.Doctor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.List;
@@ -17,6 +19,35 @@ public interface DoctorRepository extends JpaRepository<Doctor, UUID> {
 
     List<Doctor> findByDepartmentId(UUID departmentId);
 
-    // ✅ Hospital Dashboard Statistics Method
     long countByDepartmentHospitalId(UUID hospitalId);
+
+    // Search by doctor's first name
+    Page<Doctor> findByFirstNameContainingIgnoreCase(
+            String firstName,
+            Pageable pageable
+    );
+
+    // Search by doctor's last name
+    Page<Doctor> findByLastNameContainingIgnoreCase(
+            String lastName,
+            Pageable pageable
+    );
+
+    // Search by specialty
+    Page<Doctor> findBySpecialtyContainingIgnoreCase(
+            String specialty,
+            Pageable pageable
+    );
+
+    // Search by department
+    Page<Doctor> findByDepartmentNameContainingIgnoreCase(
+            String department,
+            Pageable pageable
+    );
+
+    // Search by hospital
+    Page<Doctor> findByDepartmentHospitalNameContainingIgnoreCase(
+            String hospital,
+            Pageable pageable
+    );
 }

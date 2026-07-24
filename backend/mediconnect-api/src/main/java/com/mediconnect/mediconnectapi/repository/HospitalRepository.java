@@ -2,6 +2,8 @@ package com.mediconnect.mediconnectapi.repository;
 
 
 import com.mediconnect.mediconnectapi.entity.Hospital;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;
@@ -15,5 +17,18 @@ public interface HospitalRepository extends JpaRepository<Hospital, UUID> {
 
 
     boolean existsByEmail(String email);
+
+
+    Page<Hospital> findByNameContainingIgnoreCase(
+            String name,
+            Pageable pageable
+    );
+
+
+    Page<Hospital> findByLocationContainingIgnoreCase(
+            String location,
+            Pageable pageable
+    );
+
 
 }

@@ -2,6 +2,8 @@ package com.mediconnect.mediconnectapi.repository;
 
 import com.mediconnect.mediconnectapi.entity.Appointment;
 import com.mediconnect.mediconnectapi.entity.enums.AppointmentStatus;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 
@@ -89,4 +91,27 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
            WHERE a.doctor.department.hospital.id = :hospitalId
            """)
     long countDistinctPatientsByHospitalId(UUID hospitalId);
+
+    // ✅ Paginated Search Methods
+    Page<Appointment> findByStatus(
+            AppointmentStatus status,
+            Pageable pageable
+    );
+
+    Page<Appointment> findByAppointmentDate(
+            LocalDate appointmentDate,
+            Pageable pageable
+    );
+
+    Page<Appointment> findByDoctorFirstNameContainingIgnoreCaseOrDoctorLastNameContainingIgnoreCase(
+            String firstName,
+            String lastName,
+            Pageable pageable
+    );
+
+    Page<Appointment> findByPatientFirstNameContainingIgnoreCaseOrPatientLastNameContainingIgnoreCase(
+            String firstName,
+            String lastName,
+            Pageable pageable
+    );
 }
