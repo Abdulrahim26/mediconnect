@@ -4,6 +4,7 @@ import com.mediconnect.mediconnectapi.dto.request.CreateAppointmentRequest;
 import com.mediconnect.mediconnectapi.dto.response.AppointmentResponse;
 import com.mediconnect.mediconnectapi.entity.*;
 import com.mediconnect.mediconnectapi.entity.enums.AppointmentStatus;
+import com.mediconnect.mediconnectapi.entity.enums.NotificationType;
 import com.mediconnect.mediconnectapi.exception.BadRequestException;
 import com.mediconnect.mediconnectapi.exception.ResourceNotFoundException;
 import com.mediconnect.mediconnectapi.repository.AppointmentRepository;
@@ -11,6 +12,7 @@ import com.mediconnect.mediconnectapi.repository.DoctorRepository;
 import com.mediconnect.mediconnectapi.repository.PatientRepository;
 import com.mediconnect.mediconnectapi.repository.UserRepository;
 import com.mediconnect.mediconnectapi.service.AppointmentService;
+import com.mediconnect.mediconnectapi.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -28,6 +30,7 @@ public class AppointmentServiceImpl implements AppointmentService {
     private final DoctorRepository doctorRepository;
     private final UserRepository userRepository;
     private final PatientRepository patientRepository;
+    private final NotificationService notificationService;
 
     @Override
     public AppointmentResponse bookAppointment(CreateAppointmentRequest request) {
@@ -73,6 +76,16 @@ public class AppointmentServiceImpl implements AppointmentService {
 
         Appointment savedAppointment = appointmentRepository.save(appointment);
 
+        // ✅ Send notification to doctor
+        notificationService.createNotification(
+                doctor.getUser().getId(),
+                "New appointment request from "
+                        + patient.getFirstName()
+                        + " "
+                        + patient.getLastName(),
+                NotificationType.APPOINTMENT_BOOKED
+        );
+
         return mapToResponse(savedAppointment);
     }
 
@@ -102,6 +115,16 @@ public class AppointmentServiceImpl implements AppointmentService {
         appointment.setStatus(AppointmentStatus.APPROVED);
         Appointment updatedAppointment = appointmentRepository.save(appointment);
 
+        // ✅ Send notification to patient
+        notificationService.createNotification(
+                appointment.getPatient().getUser().getId(),
+                "Your appointment has been approved by Dr. "
+                        + appointment.getDoctor().getFirstName()
+                        + " "
+                        + appointment.getDoctor().getLastName(),
+                NotificationType.APPOINTMENT_APPROVED
+        );
+
         return mapToResponse(updatedAppointment);
     }
 
@@ -118,6 +141,16 @@ public class AppointmentServiceImpl implements AppointmentService {
         appointment.setStatus(AppointmentStatus.REJECTED);
         Appointment updatedAppointment = appointmentRepository.save(appointment);
 
+        // ✅ Send notification to patient
+        notificationService.createNotification(
+                appointment.getPatient().getUser().getId(),
+                "Your appointment has been rejected by Dr. "
+                        + appointment.getDoctor().getFirstName()
+                        + " "
+                        + appointment.getDoctor().getLastName(),
+                NotificationType.APPOINTMENT_REJECTED
+        );
+
         return mapToResponse(updatedAppointment);
     }
 
@@ -133,6 +166,13 @@ public class AppointmentServiceImpl implements AppointmentService {
 
         appointment.setStatus(AppointmentStatus.COMPLETED);
         Appointment updatedAppointment = appointmentRepository.save(appointment);
+
+        // ✅ Send notification to patient
+        notificationService.createNotification(
+                appointment.getPatient().getUser().getId(),
+                "Your appointment has been completed.",
+                NotificationType.APPOINTMENT_COMPLETED
+        );
 
         return mapToResponse(updatedAppointment);
     }
@@ -198,7 +238,7 @@ public class AppointmentServiceImpl implements AppointmentService {
     }
 
     @Override
-    public AppointmentResponse doctorCancelAppointment(UUID appointmentId) { // ✅ NEW
+    public AppointmentResponse doctorCancelAppointment(UUID appointmentId) {
 
         String email = SecurityContextHolder
                 .getContext()

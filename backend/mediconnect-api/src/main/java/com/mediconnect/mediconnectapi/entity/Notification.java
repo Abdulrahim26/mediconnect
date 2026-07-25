@@ -1,6 +1,7 @@
 package com.mediconnect.mediconnectapi.entity;
 
 
+import com.mediconnect.mediconnectapi.entity.enums.NotificationType;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -15,12 +16,17 @@ public class Notification extends BaseEntity {
 
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
+    @JoinColumn(
+            name = "user_id",
+            nullable = false
+    )
     private User user;
+
 
 
     @Column(nullable = false)
     private String message;
+
 
 
     @Enumerated(EnumType.STRING)
@@ -28,7 +34,8 @@ public class Notification extends BaseEntity {
     private NotificationType type;
 
 
+
     @Column(nullable = false)
-    private boolean read = false;
+    private boolean readStatus = false;
 
 }
