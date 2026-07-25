@@ -32,6 +32,7 @@ public class DoctorDashboardResponse {
 
     private long cancelledAppointments;
 
+    private long totalPatients;
 
     private List<DoctorAppointmentResponse> todaysAppointments;
 

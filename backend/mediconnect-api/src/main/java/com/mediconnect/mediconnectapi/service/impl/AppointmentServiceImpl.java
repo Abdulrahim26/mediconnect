@@ -16,6 +16,7 @@ import com.mediconnect.mediconnectapi.service.NotificationService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -33,6 +34,7 @@ public class AppointmentServiceImpl implements AppointmentService {
     private final NotificationService notificationService;
 
     @Override
+    @Transactional
     public AppointmentResponse bookAppointment(CreateAppointmentRequest request) {
 
         // Logged-in patient
@@ -42,16 +44,16 @@ public class AppointmentServiceImpl implements AppointmentService {
                 .getName();
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         Patient patient = patientRepository.findByUserId(user.getId())
-                .orElseThrow(() -> new RuntimeException("Patient profile not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Patient profile not found"));
 
         // Find doctor
         Doctor doctor = doctorRepository.findById(request.getDoctorId())
-                .orElseThrow(() -> new RuntimeException("Doctor not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Doctor not found"));
 
-        // ✅ Check if the slot is already booked
+        // Check if the slot is already booked
         boolean slotBooked = appointmentRepository
                 .existsByDoctorIdAndAppointmentDateAndAppointmentTime(
                         doctor.getId(),
@@ -60,9 +62,7 @@ public class AppointmentServiceImpl implements AppointmentService {
                 );
 
         if (slotBooked) {
-            throw new RuntimeException(
-                    "The selected appointment slot is already booked."
-            );
+            throw new BadRequestException("The selected appointment slot is already booked.");
         }
 
         // Create appointment
@@ -76,7 +76,7 @@ public class AppointmentServiceImpl implements AppointmentService {
 
         Appointment savedAppointment = appointmentRepository.save(appointment);
 
-        // ✅ Send notification to doctor
+        // Send notification to doctor
         notificationService.createNotification(
                 doctor.getUser().getId(),
                 "New appointment request from "
@@ -107,21 +107,20 @@ public class AppointmentServiceImpl implements AppointmentService {
         Appointment appointment = getDoctorAppointment(appointmentId);
 
         if (appointment.getStatus() != AppointmentStatus.PENDING) {
-            throw new RuntimeException(
-                    "Only pending appointments can be approved."
-            );
+            throw new BadRequestException("Only pending appointments can be approved.");
         }
 
         appointment.setStatus(AppointmentStatus.APPROVED);
         Appointment updatedAppointment = appointmentRepository.save(appointment);
 
-        // ✅ Send notification to patient
+        // Send notification to patient
         notificationService.createNotification(
                 appointment.getPatient().getUser().getId(),
-                "Your appointment has been approved by Dr. "
+                "Your appointment with Dr. "
                         + appointment.getDoctor().getFirstName()
                         + " "
-                        + appointment.getDoctor().getLastName(),
+                        + appointment.getDoctor().getLastName()
+                        + " has been approved.",
                 NotificationType.APPOINTMENT_APPROVED
         );
 
@@ -133,21 +132,20 @@ public class AppointmentServiceImpl implements AppointmentService {
         Appointment appointment = getDoctorAppointment(appointmentId);
 
         if (appointment.getStatus() != AppointmentStatus.PENDING) {
-            throw new RuntimeException(
-                    "Only pending appointments can be rejected."
-            );
+            throw new BadRequestException("Only pending appointments can be rejected.");
         }
 
         appointment.setStatus(AppointmentStatus.REJECTED);
         Appointment updatedAppointment = appointmentRepository.save(appointment);
 
-        // ✅ Send notification to patient
+        // Send notification to patient
         notificationService.createNotification(
                 appointment.getPatient().getUser().getId(),
-                "Your appointment has been rejected by Dr. "
+                "Your appointment with Dr. "
                         + appointment.getDoctor().getFirstName()
                         + " "
-                        + appointment.getDoctor().getLastName(),
+                        + appointment.getDoctor().getLastName()
+                        + " has been rejected.",
                 NotificationType.APPOINTMENT_REJECTED
         );
 
@@ -159,18 +157,20 @@ public class AppointmentServiceImpl implements AppointmentService {
         Appointment appointment = getDoctorAppointment(appointmentId);
 
         if (appointment.getStatus() != AppointmentStatus.APPROVED) {
-            throw new RuntimeException(
-                    "Only approved appointments can be completed."
-            );
+            throw new BadRequestException("Only approved appointments can be completed.");
         }
 
         appointment.setStatus(AppointmentStatus.COMPLETED);
         Appointment updatedAppointment = appointmentRepository.save(appointment);
 
-        // ✅ Send notification to patient
+        // Send notification to patient
         notificationService.createNotification(
                 appointment.getPatient().getUser().getId(),
-                "Your appointment has been completed.",
+                "Your appointment with Dr. "
+                        + appointment.getDoctor().getFirstName()
+                        + " "
+                        + appointment.getDoctor().getLastName()
+                        + " has been completed.",
                 NotificationType.APPOINTMENT_COMPLETED
         );
 
@@ -225,14 +225,25 @@ public class AppointmentServiceImpl implements AppointmentService {
 
         Appointment appointment = appointmentRepository
                 .findByIdAndPatientId(appointmentId, patient.getId())
-                .orElseThrow(() -> new RuntimeException("Appointment not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
 
         if (appointment.getStatus() == AppointmentStatus.COMPLETED) {
-            throw new RuntimeException("Completed appointment cannot be cancelled");
+            throw new BadRequestException("Completed appointment cannot be cancelled");
         }
 
         appointment.setStatus(AppointmentStatus.CANCELLED);
         Appointment saved = appointmentRepository.save(appointment);
+
+        // Send notification to doctor
+        notificationService.createNotification(
+                appointment.getDoctor().getUser().getId(),
+                "Appointment with "
+                        + patient.getFirstName()
+                        + " "
+                        + patient.getLastName()
+                        + " has been cancelled by the patient.",
+                NotificationType.APPOINTMENT_CANCELLED
+        );
 
         return mapToResponse(saved);
     }
@@ -268,6 +279,17 @@ public class AppointmentServiceImpl implements AppointmentService {
 
         Appointment saved = appointmentRepository.save(appointment);
 
+        // Send notification to patient
+        notificationService.createNotification(
+                appointment.getPatient().getUser().getId(),
+                "Your appointment with Dr. "
+                        + doctor.getFirstName()
+                        + " "
+                        + doctor.getLastName()
+                        + " has been cancelled by the doctor.",
+                NotificationType.APPOINTMENT_CANCELLED
+        );
+
         return mapToResponse(saved);
     }
 
@@ -280,10 +302,22 @@ public class AppointmentServiceImpl implements AppointmentService {
 
         Appointment appointment = appointmentRepository
                 .findByIdAndPatientId(appointmentId, patient.getId())
-                .orElseThrow(() -> new RuntimeException("Appointment not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
 
         if (appointment.getStatus() == AppointmentStatus.COMPLETED) {
-            throw new RuntimeException("Completed appointment cannot be rescheduled");
+            throw new BadRequestException("Completed appointment cannot be rescheduled");
+        }
+
+        // Check if the new slot is available
+        boolean slotBooked = appointmentRepository
+                .existsByDoctorIdAndAppointmentDateAndAppointmentTime(
+                        appointment.getDoctor().getId(),
+                        request.getAppointmentDate(),
+                        request.getAppointmentTime()
+                );
+
+        if (slotBooked) {
+            throw new BadRequestException("The selected appointment slot is already booked.");
         }
 
         appointment.setAppointmentDate(request.getAppointmentDate());
@@ -292,6 +326,17 @@ public class AppointmentServiceImpl implements AppointmentService {
         appointment.setStatus(AppointmentStatus.PENDING);
 
         Appointment saved = appointmentRepository.save(appointment);
+
+        // Send notification to doctor
+        notificationService.createNotification(
+                appointment.getDoctor().getUser().getId(),
+                "Appointment with "
+                        + patient.getFirstName()
+                        + " "
+                        + patient.getLastName()
+                        + " has been rescheduled.",
+                NotificationType.APPOINTMENT_RESCHEDULED
+        );
 
         return mapToResponse(saved);
     }
@@ -304,10 +349,10 @@ public class AppointmentServiceImpl implements AppointmentService {
                 .getName();
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         return patientRepository.findByUserId(user.getId())
-                .orElseThrow(() -> new RuntimeException("Patient profile not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Patient profile not found"));
     }
 
     // ✅ HELPER METHOD: Get current doctor
@@ -318,10 +363,10 @@ public class AppointmentServiceImpl implements AppointmentService {
                 .getName();
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new RuntimeException("User not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
 
         return doctorRepository.findByUserId(user.getId())
-                .orElseThrow(() -> new RuntimeException("Doctor profile not found"));
+                .orElseThrow(() -> new ResourceNotFoundException("Doctor profile not found"));
     }
 
     // ✅ HELPER METHOD: Get doctor's appointment by ID
@@ -334,7 +379,7 @@ public class AppointmentServiceImpl implements AppointmentService {
                         doctor.getId()
                 )
                 .orElseThrow(() ->
-                        new RuntimeException(
+                        new ResourceNotFoundException(
                                 "Appointment not found or you don't have permission."
                         )
                 );

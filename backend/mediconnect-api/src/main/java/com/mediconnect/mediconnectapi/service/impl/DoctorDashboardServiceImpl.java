@@ -5,20 +5,22 @@ import com.mediconnect.mediconnectapi.dto.response.DoctorAppointmentResponse;
 import com.mediconnect.mediconnectapi.dto.response.DoctorDashboardResponse;
 import com.mediconnect.mediconnectapi.entity.Appointment;
 import com.mediconnect.mediconnectapi.entity.Doctor;
+import com.mediconnect.mediconnectapi.entity.User;
 import com.mediconnect.mediconnectapi.entity.enums.AppointmentStatus;
 import com.mediconnect.mediconnectapi.exception.ResourceNotFoundException;
 import com.mediconnect.mediconnectapi.repository.AppointmentRepository;
 import com.mediconnect.mediconnectapi.repository.DoctorRepository;
+import com.mediconnect.mediconnectapi.repository.UserRepository;
 import com.mediconnect.mediconnectapi.service.DoctorDashboardService;
 
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.UUID;
 
 
 @Service
@@ -31,67 +33,92 @@ public class DoctorDashboardServiceImpl
 
     private final DoctorRepository doctorRepository;
 
+    private final UserRepository userRepository;
+
 
 
     @Override
-    public DoctorDashboardResponse getDashboard(UUID doctorId) {
+    public DoctorDashboardResponse getDashboard() {
+
+
+        String email =
+                SecurityContextHolder
+                        .getContext()
+                        .getAuthentication()
+                        .getName();
+
+
+
+        User user =
+                userRepository.findByEmail(email)
+                        .orElseThrow(() ->
+                                new ResourceNotFoundException(
+                                        "User not found"
+                                )
+                        );
+
 
 
         Doctor doctor =
-                doctorRepository.findById(doctorId)
+                doctorRepository.findByUserId(user.getId())
                         .orElseThrow(() ->
                                 new ResourceNotFoundException(
-                                        "Doctor not found"
+                                        "Doctor profile not found"
                                 )
                         );
 
 
 
         long totalAppointments =
-                appointmentRepository.countByDoctorId(doctorId);
+                appointmentRepository.countByDoctorId(
+                        doctor.getId()
+                );
 
 
 
         long pendingAppointments =
-                appointmentRepository
-                        .countByDoctorIdAndStatus(
-                                doctorId,
-                                AppointmentStatus.PENDING
-                        );
+                appointmentRepository.countByDoctorIdAndStatus(
+                        doctor.getId(),
+                        AppointmentStatus.PENDING
+                );
 
 
 
         long approvedAppointments =
-                appointmentRepository
-                        .countByDoctorIdAndStatus(
-                                doctorId,
-                                AppointmentStatus.APPROVED
-                        );
+                appointmentRepository.countByDoctorIdAndStatus(
+                        doctor.getId(),
+                        AppointmentStatus.APPROVED
+                );
 
 
 
         long completedAppointments =
-                appointmentRepository
-                        .countByDoctorIdAndStatus(
-                                doctorId,
-                                AppointmentStatus.COMPLETED
-                        );
+                appointmentRepository.countByDoctorIdAndStatus(
+                        doctor.getId(),
+                        AppointmentStatus.COMPLETED
+                );
 
 
 
         long cancelledAppointments =
-                appointmentRepository
-                        .countByDoctorIdAndStatus(
-                                doctorId,
-                                AppointmentStatus.CANCELLED
-                        );
+                appointmentRepository.countByDoctorIdAndStatus(
+                        doctor.getId(),
+                        AppointmentStatus.CANCELLED
+                );
+
+
+
+        long totalPatients =
+                appointmentRepository.countDistinctPatientsByDoctorId(
+                        doctor.getId()
+                );
 
 
 
         List<DoctorAppointmentResponse> todayAppointments =
                 appointmentRepository
                         .findByDoctorIdAndAppointmentDate(
-                                doctorId,
+                                doctor.getId(),
                                 LocalDate.now()
                         )
                         .stream()
@@ -116,12 +143,13 @@ public class DoctorDashboardServiceImpl
 
                 cancelledAppointments,
 
+                totalPatients,
+
                 todayAppointments
 
         );
 
     }
-
 
 
 

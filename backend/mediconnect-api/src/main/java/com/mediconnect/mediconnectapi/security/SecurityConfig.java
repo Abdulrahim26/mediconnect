@@ -58,6 +58,9 @@ public class SecurityConfig {
                         // Doctor endpoints
                         .requestMatchers("/api/doctors/**").hasAnyRole("DOCTOR", "HOSPITAL_ADMIN")
 
+                        // Medical Records endpoints
+                        .requestMatchers("/api/medical-records/**").hasAnyRole("DOCTOR", "PATIENT")
+
                         // Swagger UI endpoints (if using Swagger)
                         .requestMatchers("/swagger-ui/**", "/v3/api-docs/**").permitAll()
 

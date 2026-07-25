@@ -1,6 +1,5 @@
 package com.mediconnect.mediconnectapi.service.impl;
 
-
 import com.mediconnect.mediconnectapi.dto.request.CreateDepartmentRequest;
 import com.mediconnect.mediconnectapi.dto.response.DepartmentResponse;
 import com.mediconnect.mediconnectapi.entity.Department;
@@ -8,7 +7,6 @@ import com.mediconnect.mediconnectapi.entity.User;
 import com.mediconnect.mediconnectapi.repository.DepartmentRepository;
 import com.mediconnect.mediconnectapi.repository.UserRepository;
 import com.mediconnect.mediconnectapi.service.DepartmentService;
-
 
 import lombok.RequiredArgsConstructor;
 
@@ -26,19 +24,16 @@ public class DepartmentServiceImpl implements DepartmentService {
     private final UserRepository userRepository;
 
 
-
     @Override
     public DepartmentResponse createDepartment(
             CreateDepartmentRequest request
     ) {
-
 
         String email =
                 SecurityContextHolder
                         .getContext()
                         .getAuthentication()
                         .getName();
-
 
 
         User user =
@@ -48,15 +43,13 @@ public class DepartmentServiceImpl implements DepartmentService {
                         );
 
 
-
-        if(user.getHospital() == null){
+        if (user.getHospital() == null) {
 
             throw new RuntimeException(
                     "User is not assigned to a hospital"
             );
 
         }
-
 
 
         boolean exists =
@@ -66,14 +59,13 @@ public class DepartmentServiceImpl implements DepartmentService {
                 );
 
 
-        if(exists){
+        if (exists) {
 
             throw new RuntimeException(
                     "Department already exists in this hospital"
             );
 
         }
-
 
 
         Department department = new Department();
@@ -89,10 +81,8 @@ public class DepartmentServiceImpl implements DepartmentService {
         );
 
 
-
         Department saved =
                 departmentRepository.save(department);
-
 
 
         return new DepartmentResponse(

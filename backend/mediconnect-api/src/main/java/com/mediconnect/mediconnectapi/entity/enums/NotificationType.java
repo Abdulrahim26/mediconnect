@@ -3,7 +3,6 @@ package com.mediconnect.mediconnectapi.entity.enums;
 
 public enum NotificationType {
 
-
     APPOINTMENT_BOOKED,
 
     APPOINTMENT_APPROVED,
@@ -11,6 +10,10 @@ public enum NotificationType {
     APPOINTMENT_REJECTED,
 
     APPOINTMENT_COMPLETED,
+
+    APPOINTMENT_CANCELLED,
+
+    APPOINTMENT_RESCHEDULED,
 
     MEDICAL_RECORD_CREATED
 
