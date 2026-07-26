@@ -92,6 +92,11 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
            """)
     long countDistinctPatientsByHospitalId(UUID hospitalId);
 
+    List<Appointment> findByDoctorDepartmentHospitalIdAndAppointmentDate(
+            UUID hospitalId,
+            LocalDate appointmentDate
+    );
+
     // ✅ Doctor Dashboard Statistics Methods
     @Query("""
            SELECT COUNT(DISTINCT a.patient.id)

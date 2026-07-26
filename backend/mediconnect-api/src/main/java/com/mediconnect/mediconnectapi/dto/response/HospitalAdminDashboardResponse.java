@@ -1,40 +1,27 @@
 package com.mediconnect.mediconnectapi.dto.response;
 
-
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.Setter;
 
-import java.util.List;
-
-
 @Getter
 @Setter
 @AllArgsConstructor
-public class PatientDashboardResponse {
+public class HospitalAdminDashboardResponse {
 
+    private String hospitalName;
 
-    private String patientName;
+    private long totalDoctors;
 
+    private long totalPatients;
 
     private long totalAppointments;
 
-
     private long pendingAppointments;
-
 
     private long approvedAppointments;
 
-
     private long completedAppointments;
 
-
     private long cancelledAppointments;
-
-
-    private List<AppointmentResponse> upcomingAppointments;
-
-
-    private List<MedicalRecordResponse> recentMedicalRecords;
-
 }

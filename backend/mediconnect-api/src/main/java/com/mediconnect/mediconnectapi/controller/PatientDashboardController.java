@@ -4,15 +4,10 @@ package com.mediconnect.mediconnectapi.controller;
 import com.mediconnect.mediconnectapi.dto.response.PatientDashboardResponse;
 import com.mediconnect.mediconnectapi.service.PatientDashboardService;
 
-
 import lombok.RequiredArgsConstructor;
-
 
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
-
-
-import java.util.UUID;
 
 
 @RestController
@@ -25,14 +20,12 @@ public class PatientDashboardController {
 
 
 
-    @GetMapping("/{patientId}")
-    public ResponseEntity<PatientDashboardResponse> getDashboard(
-            @PathVariable UUID patientId
-    ) {
+    @GetMapping
+    public ResponseEntity<PatientDashboardResponse> getDashboard() {
 
 
         return ResponseEntity.ok(
-                patientDashboardService.getDashboard(patientId)
+                patientDashboardService.getDashboard()
         );
 
     }

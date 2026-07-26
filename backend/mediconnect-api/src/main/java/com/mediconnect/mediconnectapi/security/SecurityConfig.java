@@ -58,6 +58,9 @@ public class SecurityConfig {
                         // Doctor endpoints
                         .requestMatchers("/api/doctors/**").hasAnyRole("DOCTOR", "HOSPITAL_ADMIN")
 
+                        // Receptionist endpoints
+                        .requestMatchers("/api/receptionist/**").hasRole("RECEPTIONIST")
+
                         // Medical Records endpoints
                         .requestMatchers("/api/medical-records/**").hasAnyRole("DOCTOR", "PATIENT")
 

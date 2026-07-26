@@ -1,25 +1,26 @@
 package com.mediconnect.mediconnectapi.service.impl;
 
 
-import com.mediconnect.mediconnectapi.dto.response.PatientAppointmentResponse;
+import com.mediconnect.mediconnectapi.dto.response.AppointmentResponse;
+import com.mediconnect.mediconnectapi.dto.response.MedicalRecordResponse;
 import com.mediconnect.mediconnectapi.dto.response.PatientDashboardResponse;
-import com.mediconnect.mediconnectapi.entity.Appointment;
 import com.mediconnect.mediconnectapi.entity.Patient;
+import com.mediconnect.mediconnectapi.entity.User;
 import com.mediconnect.mediconnectapi.entity.enums.AppointmentStatus;
 import com.mediconnect.mediconnectapi.exception.ResourceNotFoundException;
 import com.mediconnect.mediconnectapi.repository.AppointmentRepository;
+import com.mediconnect.mediconnectapi.repository.MedicalRecordRepository;
 import com.mediconnect.mediconnectapi.repository.PatientRepository;
+import com.mediconnect.mediconnectapi.repository.UserRepository;
 import com.mediconnect.mediconnectapi.service.PatientDashboardService;
-
 
 import lombok.RequiredArgsConstructor;
 
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
-
 
 import java.time.LocalDate;
 import java.util.List;
-import java.util.UUID;
 
 
 @Service
@@ -28,54 +29,92 @@ public class PatientDashboardServiceImpl
         implements PatientDashboardService {
 
 
+    private final AppointmentRepository appointmentRepository;
+
+    private final MedicalRecordRepository medicalRecordRepository;
+
     private final PatientRepository patientRepository;
 
-
-    private final AppointmentRepository appointmentRepository;
+    private final UserRepository userRepository;
 
 
 
     @Override
-    public PatientDashboardResponse getDashboard(UUID patientId) {
+    public PatientDashboardResponse getDashboard() {
+
+
+        String email =
+                SecurityContextHolder
+                        .getContext()
+                        .getAuthentication()
+                        .getName();
+
+
+
+        User user =
+                userRepository.findByEmail(email)
+                        .orElseThrow(() ->
+                                new ResourceNotFoundException(
+                                        "User not found"
+                                )
+                        );
+
 
 
         Patient patient =
-                patientRepository.findById(patientId)
+                patientRepository.findByUserId(user.getId())
                         .orElseThrow(() ->
                                 new ResourceNotFoundException(
-                                        "Patient not found"
+                                        "Patient profile not found"
                                 )
                         );
 
 
 
         long totalAppointments =
-                appointmentRepository.countByPatientId(patientId);
+                appointmentRepository.countByPatientId(
+                        patient.getId()
+                );
+
+
+
+        long pendingAppointments =
+                appointmentRepository.countByPatientIdAndStatus(
+                        patient.getId(),
+                        AppointmentStatus.PENDING
+                );
+
+
+
+        long approvedAppointments =
+                appointmentRepository.countByPatientIdAndStatus(
+                        patient.getId(),
+                        AppointmentStatus.APPROVED
+                );
 
 
 
         long completedAppointments =
-                appointmentRepository
-                        .countByPatientIdAndStatus(
-                                patientId,
-                                AppointmentStatus.COMPLETED
-                        );
+                appointmentRepository.countByPatientIdAndStatus(
+                        patient.getId(),
+                        AppointmentStatus.COMPLETED
+                );
 
 
 
         long cancelledAppointments =
+                appointmentRepository.countByPatientIdAndStatus(
+                        patient.getId(),
+                        AppointmentStatus.CANCELLED
+                );
+
+
+
+        List<AppointmentResponse> upcomingAppointments =
                 appointmentRepository
-                        .countByPatientIdAndStatus(
-                                patientId,
-                                AppointmentStatus.CANCELLED
-                        );
-
-
-
-        List<PatientAppointmentResponse> appointments =
-                appointmentRepository
-                        .findByPatientIdOrderByAppointmentDateDesc(
-                                patientId
+                        .findByPatientIdAndAppointmentDateAfterOrderByAppointmentDateAsc(
+                                patient.getId(),
+                                LocalDate.now()
                         )
                         .stream()
                         .map(this::mapAppointment)
@@ -83,15 +122,44 @@ public class PatientDashboardServiceImpl
 
 
 
-        long upcomingAppointments =
-                appointments.stream()
-                        .filter(
-                                appointment ->
-                                        appointment.getAppointmentDate()
-                                                .isAfter(LocalDate.now())
+        List<MedicalRecordResponse> recentMedicalRecords =
+                medicalRecordRepository
+                        .findByPatientIdOrderByCreatedAtDesc(
+                                patient.getId()
                         )
-                        .count();
+                        .stream()
+                        .map(record ->
+                                new MedicalRecordResponse(
 
+                                        record.getId(),
+
+                                        record.getAppointment().getId(),
+
+                                        record.getPatient()
+                                                .getFirstName()
+                                                + " "
+                                                + record.getPatient()
+                                                .getLastName(),
+
+                                        record.getDoctor()
+                                                .getFirstName()
+                                                + " "
+                                                + record.getDoctor()
+                                                .getLastName(),
+
+                                        record.getDiagnosis(),
+
+                                        record.getTreatment(),
+
+                                        null, // prescription (not yet stored in MedicalRecord entity)
+
+                                        record.getNotes(),
+
+                                        record.getCreatedAt()
+
+                                )
+                        )
+                        .toList();
 
 
         return new PatientDashboardResponse(
@@ -100,17 +168,19 @@ public class PatientDashboardServiceImpl
                         + " "
                         + patient.getLastName(),
 
-                patient.getUser().getEmail(),
-
                 totalAppointments,
 
-                upcomingAppointments,
+                pendingAppointments,
+
+                approvedAppointments,
 
                 completedAppointments,
 
                 cancelledAppointments,
 
-                appointments
+                upcomingAppointments,
+
+                recentMedicalRecords
 
         );
 
@@ -119,14 +189,20 @@ public class PatientDashboardServiceImpl
 
 
 
-    private PatientAppointmentResponse mapAppointment(
-            Appointment appointment
+    private AppointmentResponse mapAppointment(
+            com.mediconnect.mediconnectapi.entity.Appointment appointment
     ) {
 
 
-        return new PatientAppointmentResponse(
+        return new AppointmentResponse(
 
                 appointment.getId(),
+
+                appointment.getPatient()
+                        .getFirstName()
+                        + " "
+                        + appointment.getPatient()
+                        .getLastName(),
 
                 appointment.getDoctor()
                         .getFirstName()
@@ -134,18 +210,13 @@ public class PatientDashboardServiceImpl
                         + appointment.getDoctor()
                         .getLastName(),
 
-                appointment.getDoctor()
-                        .getDepartment()
-                        .getHospital()
-                        .getName(),
-
                 appointment.getAppointmentDate(),
 
                 appointment.getAppointmentTime(),
 
-                appointment.getReason(),
+                appointment.getStatus().name(),
 
-                appointment.getStatus().name()
+                appointment.getReason()
 
         );
 
