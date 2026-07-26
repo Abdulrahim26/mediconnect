@@ -127,4 +127,7 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
             String lastName,
             Pageable pageable
     );
+    List<Appointment> findByDoctorDepartmentHospitalId(
+            UUID hospitalId
+    );
 }

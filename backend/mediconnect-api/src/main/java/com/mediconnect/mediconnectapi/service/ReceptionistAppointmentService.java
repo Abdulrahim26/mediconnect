@@ -1,15 +1,15 @@
 package com.mediconnect.mediconnectapi.service;
 
 
-import com.mediconnect.mediconnectapi.dto.request.CreateReceptionistAppointmentRequest;
 import com.mediconnect.mediconnectapi.dto.response.AppointmentResponse;
+
+import java.util.List;
 
 
 public interface ReceptionistAppointmentService {
 
 
-    AppointmentResponse createAppointment(
-            CreateReceptionistAppointmentRequest request
-    );
+    List<AppointmentResponse> getHospitalAppointments();
+
 
 }
