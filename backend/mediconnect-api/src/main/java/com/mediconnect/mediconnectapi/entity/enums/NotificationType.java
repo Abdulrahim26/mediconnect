@@ -15,6 +15,5 @@ public enum NotificationType {
 
     APPOINTMENT_RESCHEDULED,
 
-    MEDICAL_RECORD_CREATED
-
+    REMINDER
 }

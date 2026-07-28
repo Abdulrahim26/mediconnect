@@ -1,6 +1,7 @@
 package com.mediconnect.mediconnectapi.service.impl;
 
 import com.mediconnect.mediconnectapi.dto.request.CreateDoctorRequest;
+import com.mediconnect.mediconnectapi.dto.request.UpdateDoctorProfileRequest;
 import com.mediconnect.mediconnectapi.dto.response.DoctorResponse;
 import com.mediconnect.mediconnectapi.entity.*;
 import com.mediconnect.mediconnectapi.exception.BadRequestException;
@@ -12,6 +13,10 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
+import java.util.UUID;
+import java.util.stream.Collectors;
+
 @Service
 @RequiredArgsConstructor
 public class DoctorServiceImpl implements DoctorService {
@@ -22,6 +27,9 @@ public class DoctorServiceImpl implements DoctorService {
     private final RoleRepository roleRepository;
     private final PasswordEncoder passwordEncoder;
 
+    // ======================================================
+    // 1. CREATE DOCTOR (HOSPITAL ADMIN)
+    // ======================================================
     @Override
     public DoctorResponse createDoctor(CreateDoctorRequest request) {
 
@@ -81,16 +89,214 @@ public class DoctorServiceImpl implements DoctorService {
         System.out.println(savedDoctor.getEmail());
         System.out.println(savedDoctor.getDepartment().getName());
 
+        return mapToResponse(savedDoctor);
+    }
+
+    // ======================================================
+    // 2. GET ALL DOCTORS IN HOSPITAL
+    // ======================================================
+    @Override
+    public List<DoctorResponse> getHospitalDoctors() {
+
+        String email = SecurityContextHolder
+                .getContext()
+                .getAuthentication()
+                .getName();
+
+        User hospitalAdmin = userRepository.findByEmail(email)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("User not found")
+                );
+
+        if (hospitalAdmin.getHospital() == null) {
+            throw new BadRequestException(
+                    "Hospital admin is not assigned to a hospital"
+            );
+        }
+
+        return doctorRepository
+                .findByDepartmentHospitalId(
+                        hospitalAdmin.getHospital().getId()
+                )
+                .stream()
+                .filter(Doctor::isActive)
+                .map(this::mapToResponse)
+                .collect(Collectors.toList());
+    }
+
+    // ======================================================
+    // 3. GET SINGLE DOCTOR
+    // ======================================================
+    @Override
+    public DoctorResponse getDoctor(UUID doctorId) {
+
+        User hospitalAdmin = getCurrentHospitalAdmin();
+
+        Doctor doctor = doctorRepository
+                .findByIdAndDepartmentHospitalId(
+                        doctorId,
+                        hospitalAdmin.getHospital().getId()
+                )
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Doctor not found")
+                );
+
+        return mapToResponse(doctor);
+    }
+
+    // ======================================================
+    // 4. UPDATE DOCTOR (HOSPITAL ADMIN)
+    // ======================================================
+    @Override
+    public DoctorResponse updateDoctor(UUID doctorId, CreateDoctorRequest request) {
+
+        User hospitalAdmin = getCurrentHospitalAdmin();
+
+        Doctor doctor = doctorRepository
+                .findByIdAndDepartmentHospitalId(
+                        doctorId,
+                        hospitalAdmin.getHospital().getId()
+                )
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Doctor not found")
+                );
+
+        // Update doctor fields
+        doctor.setFirstName(request.getFirstName());
+        doctor.setLastName(request.getLastName());
+        doctor.setSpecialty(request.getSpecialty());
+        doctor.setQualification(request.getQualification());
+        doctor.setPhone(request.getPhone());
+        doctor.setEmail(request.getEmail());
+        doctor.setConsultationFee(request.getConsultationFee());
+
+        // Update department if changed
+        if (!doctor.getDepartment().getId().equals(request.getDepartmentId())) {
+            Department department = departmentRepository.findById(request.getDepartmentId())
+                    .orElseThrow(() -> new ResourceNotFoundException("Department not found"));
+            doctor.setDepartment(department);
+        }
+
+        Doctor updatedDoctor = doctorRepository.save(doctor);
+
+        return mapToResponse(updatedDoctor);
+    }
+
+    // ======================================================
+    // 5. DEACTIVATE DOCTOR
+    // ======================================================
+    @Override
+    public String deactivateDoctor(UUID doctorId) {
+
+        User hospitalAdmin = getCurrentHospitalAdmin();
+
+        Doctor doctor = doctorRepository
+                .findByIdAndDepartmentHospitalId(
+                        doctorId,
+                        hospitalAdmin.getHospital().getId()
+                )
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Doctor not found")
+                );
+
+        doctor.setActive(false);
+        doctorRepository.save(doctor);
+
+        return "Doctor deactivated successfully";
+    }
+
+    // ======================================================
+    // 6. DOCTOR VIEW OWN PROFILE
+    // ======================================================
+    @Override
+    public DoctorResponse getMyProfile() {
+
+        String email = SecurityContextHolder
+                .getContext()
+                .getAuthentication()
+                .getName();
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("User not found")
+                );
+
+        Doctor doctor = doctorRepository.findByUserId(user.getId())
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Doctor profile not found")
+                );
+
+        return mapToResponse(doctor);
+    }
+
+    // ======================================================
+    // 7. DOCTOR UPDATE OWN PROFILE
+    // ======================================================
+    @Override
+    public DoctorResponse updateMyProfile(UpdateDoctorProfileRequest request) {
+
+        String email = SecurityContextHolder
+                .getContext()
+                .getAuthentication()
+                .getName();
+
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("User not found")
+                );
+
+        Doctor doctor = doctorRepository.findByUserId(user.getId())
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Doctor profile not found")
+                );
+
+        // Update only allowed fields
+        doctor.setFirstName(request.getFirstName());
+        doctor.setLastName(request.getLastName());
+        doctor.setPhone(request.getPhone());
+        doctor.setQualification(request.getQualification());
+        doctor.setConsultationFee(request.getConsultationFee());
+
+        // Update specialty if provided
+        if (request.getSpecialty() != null) {
+            doctor.setSpecialty(request.getSpecialty());
+        }
+
+        Doctor updatedDoctor = doctorRepository.save(doctor);
+
+        return mapToResponse(updatedDoctor);
+    }
+
+    // ======================================================
+    // 8. HELPER: GET CURRENT HOSPITAL ADMIN
+    // ======================================================
+    private User getCurrentHospitalAdmin() {
+
+        String email = SecurityContextHolder
+                .getContext()
+                .getAuthentication()
+                .getName();
+
+        return userRepository.findByEmail(email)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("User not found")
+                );
+    }
+
+    // ======================================================
+    // 9. HELPER: MAP DOCTOR TO RESPONSE
+    // ======================================================
+    private DoctorResponse mapToResponse(Doctor doctor) {
         return new DoctorResponse(
-                savedDoctor.getId(),
-                savedDoctor.getFirstName(),
-                savedDoctor.getLastName(),
-                savedDoctor.getSpecialty(),
-                savedDoctor.getQualification(),
-                savedDoctor.getPhone(),
-                savedDoctor.getEmail(),
-                savedDoctor.getConsultationFee(),
-                savedDoctor.getDepartment().getName()
+                doctor.getId(),
+                doctor.getFirstName(),
+                doctor.getLastName(),
+                doctor.getSpecialty(),
+                doctor.getQualification(),
+                doctor.getPhone(),
+                doctor.getEmail(),
+                doctor.getConsultationFee(),
+                doctor.getDepartment().getName()
         );
     }
 }

@@ -27,5 +27,13 @@ public interface MedicalRecordRepository
             UUID id,
             UUID patientId
     );
+    List<MedicalRecord> findByDoctorIdOrderByCreatedAtDesc(
+            UUID doctorId
+    );
+
+    Optional<MedicalRecord> findByIdAndDoctorId(
+            UUID id,
+            UUID doctorId
+    );
 
 }

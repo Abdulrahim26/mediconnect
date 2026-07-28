@@ -15,4 +15,12 @@ public interface ReceptionistRepository
     List<Receptionist> findByHospitalId(UUID hospitalId);
 
     boolean existsByUserId(UUID userId);
+
+    // ✅ NEW: Count receptionists by hospital
+    long countByHospitalId(UUID hospitalId);
+
+    Optional<Receptionist> findByIdAndHospitalId(
+            UUID receptionistId,
+            UUID hospitalId
+    );
 }

@@ -13,6 +13,10 @@ public class HospitalAdminDashboardResponse {
 
     private long totalDoctors;
 
+    private long totalReceptionists;
+
+    private long totalDepartments;
+
     private long totalPatients;
 
     private long totalAppointments;

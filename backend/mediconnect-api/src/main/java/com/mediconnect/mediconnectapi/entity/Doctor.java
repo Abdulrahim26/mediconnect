@@ -58,4 +58,7 @@ public class Doctor extends BaseEntity {
     )
     private User user;
 
+    @Column(nullable = false)
+    private boolean active = true;
+
 }

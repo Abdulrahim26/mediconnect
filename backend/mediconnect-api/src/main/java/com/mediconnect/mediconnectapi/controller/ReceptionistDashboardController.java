@@ -7,11 +7,12 @@ import com.mediconnect.mediconnectapi.service.ReceptionistDashboardService;
 import lombok.RequiredArgsConstructor;
 
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 
 @RestController
-@RequestMapping("/api/receptionist/dashboard")
+@RequestMapping("/api/receptionist")
 @RequiredArgsConstructor
 public class ReceptionistDashboardController {
 
@@ -20,9 +21,9 @@ public class ReceptionistDashboardController {
 
 
 
-    @GetMapping
-    public ResponseEntity<ReceptionistDashboardResponse> getDashboard(){
-
+    @PreAuthorize("hasRole('RECEPTIONIST')")
+    @GetMapping("/dashboard")
+    public ResponseEntity<ReceptionistDashboardResponse> dashboard(){
 
         return ResponseEntity.ok(
                 receptionistDashboardService.getDashboard()

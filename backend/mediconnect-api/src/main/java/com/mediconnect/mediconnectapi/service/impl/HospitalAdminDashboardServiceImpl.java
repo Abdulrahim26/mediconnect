@@ -6,7 +6,9 @@ import com.mediconnect.mediconnectapi.entity.User;
 import com.mediconnect.mediconnectapi.entity.enums.AppointmentStatus;
 import com.mediconnect.mediconnectapi.exception.ResourceNotFoundException;
 import com.mediconnect.mediconnectapi.repository.AppointmentRepository;
+import com.mediconnect.mediconnectapi.repository.DepartmentRepository;
 import com.mediconnect.mediconnectapi.repository.HospitalRepository;
+import com.mediconnect.mediconnectapi.repository.ReceptionistRepository;
 import com.mediconnect.mediconnectapi.repository.UserRepository;
 import com.mediconnect.mediconnectapi.service.HospitalAdminDashboardService;
 
@@ -25,6 +27,8 @@ public class HospitalAdminDashboardServiceImpl
     private final UserRepository userRepository;
     private final HospitalRepository hospitalRepository;
     private final AppointmentRepository appointmentRepository;
+    private final ReceptionistRepository receptionistRepository;
+    private final DepartmentRepository departmentRepository;
 
     @Override
     public HospitalAdminDashboardResponse getDashboard() {
@@ -39,14 +43,14 @@ public class HospitalAdminDashboardServiceImpl
                         new ResourceNotFoundException("User not found")
                 );
 
-        // ✅ FIXED: Check if user has a hospital assigned
+        // Check if user has a hospital assigned
         if (user.getHospital() == null) {
             throw new ResourceNotFoundException(
                     "Hospital not assigned to this admin"
             );
         }
 
-        // ✅ FIXED: Get hospital ID from the hospital entity
+        // Get hospital ID from the hospital entity
         UUID hospitalId = user.getHospital().getId();
 
         Hospital hospital = hospitalRepository.findById(hospitalId)
@@ -58,6 +62,12 @@ public class HospitalAdminDashboardServiceImpl
                 hospitalId,
                 "DOCTOR"
         );
+
+        // ✅ NEW: Count receptionists
+        long totalReceptionists = receptionistRepository.countByHospitalId(hospitalId);
+
+        // ✅ NEW: Count departments
+        long totalDepartments = departmentRepository.countByHospitalId(hospitalId);
 
         long totalAppointments = appointmentRepository
                 .countByDoctorDepartmentHospitalId(hospitalId);
@@ -92,6 +102,8 @@ public class HospitalAdminDashboardServiceImpl
         return new HospitalAdminDashboardResponse(
                 hospital.getName(),
                 totalDoctors,
+                totalReceptionists,
+                totalDepartments,
                 totalPatients,
                 totalAppointments,
                 pendingAppointments,

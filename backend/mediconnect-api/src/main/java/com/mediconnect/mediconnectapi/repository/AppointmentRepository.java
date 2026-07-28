@@ -97,6 +97,42 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
             LocalDate appointmentDate
     );
 
+    List<Appointment> findByDoctorDepartmentHospitalId(
+            UUID hospitalId
+    );
+
+    // ✅ Receptionist Appointment Management Methods
+    List<Appointment> findByDoctorDepartmentHospitalIdAndStatus(
+            UUID hospitalId,
+            AppointmentStatus status
+    );
+
+    // ✅ Paginated search methods for receptionist
+    Page<Appointment> findByDoctorDepartmentHospitalIdAndStatus(
+            UUID hospitalId,
+            AppointmentStatus status,
+            Pageable pageable
+    );
+
+    Page<Appointment> findByDoctorDepartmentHospitalIdAndPatientFirstNameContainingIgnoreCase(
+            UUID hospitalId,
+            String name,
+            Pageable pageable
+    );
+
+    Page<Appointment> findByDoctorDepartmentHospitalIdAndAppointmentDate(
+            UUID hospitalId,
+            LocalDate date,
+            Pageable pageable
+    );
+
+    List<Appointment> findByDoctorDepartmentHospitalIdAndPatientFirstNameContainingIgnoreCaseOrDoctorDepartmentHospitalIdAndPatientLastNameContainingIgnoreCase(
+            UUID hospitalId,
+            String firstName,
+            UUID hospitalId2,
+            String lastName
+    );
+
     // ✅ Doctor Dashboard Statistics Methods
     @Query("""
            SELECT COUNT(DISTINCT a.patient.id)
@@ -127,7 +163,10 @@ public interface AppointmentRepository extends JpaRepository<Appointment, UUID> 
             String lastName,
             Pageable pageable
     );
-    List<Appointment> findByDoctorDepartmentHospitalId(
-            UUID hospitalId
+
+    // ✅ NEW: Doctor waiting queue
+    List<Appointment> findByDoctorIdAndStatus(
+            UUID doctorId,
+            AppointmentStatus status
     );
 }

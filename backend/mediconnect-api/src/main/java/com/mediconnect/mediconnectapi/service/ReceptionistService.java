@@ -1,6 +1,7 @@
 package com.mediconnect.mediconnectapi.service;
 
 import com.mediconnect.mediconnectapi.dto.request.CreateReceptionistRequest;
+import com.mediconnect.mediconnectapi.dto.request.UpdateReceptionistProfileRequest;
 import com.mediconnect.mediconnectapi.dto.response.ReceptionistResponse;
 
 import java.util.List;
@@ -12,5 +13,9 @@ public interface ReceptionistService {
     );
 
     List<ReceptionistResponse> getMyHospitalReceptionists();
+    ReceptionistResponse getMyProfile();
 
+    ReceptionistResponse updateMyProfile(
+            UpdateReceptionistProfileRequest request
+    );
 }

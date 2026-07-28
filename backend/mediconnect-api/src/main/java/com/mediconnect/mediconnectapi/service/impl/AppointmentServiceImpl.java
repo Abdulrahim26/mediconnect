@@ -10,10 +10,13 @@ import com.mediconnect.mediconnectapi.exception.ResourceNotFoundException;
 import com.mediconnect.mediconnectapi.repository.AppointmentRepository;
 import com.mediconnect.mediconnectapi.repository.DoctorRepository;
 import com.mediconnect.mediconnectapi.repository.PatientRepository;
+import com.mediconnect.mediconnectapi.repository.ReceptionistRepository;
 import com.mediconnect.mediconnectapi.repository.UserRepository;
 import com.mediconnect.mediconnectapi.service.AppointmentService;
 import com.mediconnect.mediconnectapi.service.NotificationService;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,7 +24,6 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
@@ -29,43 +31,35 @@ public class AppointmentServiceImpl implements AppointmentService {
 
     private final AppointmentRepository appointmentRepository;
     private final DoctorRepository doctorRepository;
-    private final UserRepository userRepository;
     private final PatientRepository patientRepository;
+    private final UserRepository userRepository;
+    private final ReceptionistRepository receptionistRepository;
     private final NotificationService notificationService;
 
     @Override
     @Transactional
-    public AppointmentResponse bookAppointment(CreateAppointmentRequest request) {
+    public AppointmentResponse bookAppointment(
+            CreateAppointmentRequest request
+    ) {
 
-        // Logged-in patient
-        String email = SecurityContextHolder
-                .getContext()
-                .getAuthentication()
-                .getName();
+        Patient patient = getLoggedInPatient();
 
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-
-        Patient patient = patientRepository.findByUserId(user.getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Patient profile not found"));
-
-        // Find doctor
         Doctor doctor = doctorRepository.findById(request.getDoctorId())
-                .orElseThrow(() -> new ResourceNotFoundException("Doctor not found"));
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Doctor not found")
+                );
 
-        // Check if the slot is already booked
-        boolean slotBooked = appointmentRepository
+        boolean exists = appointmentRepository
                 .existsByDoctorIdAndAppointmentDateAndAppointmentTime(
                         doctor.getId(),
                         request.getAppointmentDate(),
                         request.getAppointmentTime()
                 );
 
-        if (slotBooked) {
-            throw new BadRequestException("The selected appointment slot is already booked.");
+        if (exists) {
+            throw new BadRequestException("Appointment slot already booked");
         }
 
-        // Create appointment
         Appointment appointment = new Appointment();
         appointment.setPatient(patient);
         appointment.setDoctor(doctor);
@@ -74,9 +68,8 @@ public class AppointmentServiceImpl implements AppointmentService {
         appointment.setReason(request.getReason());
         appointment.setStatus(AppointmentStatus.PENDING);
 
-        Appointment savedAppointment = appointmentRepository.save(appointment);
+        Appointment saved = appointmentRepository.save(appointment);
 
-        // Send notification to doctor
         notificationService.createNotification(
                 doctor.getUser().getId(),
                 "New appointment request from "
@@ -86,70 +79,48 @@ public class AppointmentServiceImpl implements AppointmentService {
                 NotificationType.APPOINTMENT_BOOKED
         );
 
-        return mapToResponse(savedAppointment);
+        return map(saved);
     }
 
     @Override
     public List<AppointmentResponse> getDoctorAppointments() {
-        Doctor doctor = getCurrentDoctor();
+        Doctor doctor = getLoggedInDoctor();
 
         return appointmentRepository
-                .findByDoctorIdOrderByAppointmentDateAscAppointmentTimeAsc(
-                        doctor.getId()
-                )
+                .findByDoctorIdOrderByAppointmentDateAscAppointmentTimeAsc(doctor.getId())
                 .stream()
-                .map(this::mapToResponse)
+                .map(this::map)
                 .toList();
     }
 
     @Override
     public AppointmentResponse approveAppointment(UUID appointmentId) {
         Appointment appointment = getDoctorAppointment(appointmentId);
-
-        if (appointment.getStatus() != AppointmentStatus.PENDING) {
-            throw new BadRequestException("Only pending appointments can be approved.");
-        }
-
         appointment.setStatus(AppointmentStatus.APPROVED);
-        Appointment updatedAppointment = appointmentRepository.save(appointment);
+        Appointment saved = appointmentRepository.save(appointment);
 
-        // Send notification to patient
         notificationService.createNotification(
                 appointment.getPatient().getUser().getId(),
-                "Your appointment with Dr. "
-                        + appointment.getDoctor().getFirstName()
-                        + " "
-                        + appointment.getDoctor().getLastName()
-                        + " has been approved.",
+                "Your appointment has been approved",
                 NotificationType.APPOINTMENT_APPROVED
         );
 
-        return mapToResponse(updatedAppointment);
+        return map(saved);
     }
 
     @Override
     public AppointmentResponse rejectAppointment(UUID appointmentId) {
         Appointment appointment = getDoctorAppointment(appointmentId);
-
-        if (appointment.getStatus() != AppointmentStatus.PENDING) {
-            throw new BadRequestException("Only pending appointments can be rejected.");
-        }
-
         appointment.setStatus(AppointmentStatus.REJECTED);
-        Appointment updatedAppointment = appointmentRepository.save(appointment);
+        Appointment saved = appointmentRepository.save(appointment);
 
-        // Send notification to patient
         notificationService.createNotification(
                 appointment.getPatient().getUser().getId(),
-                "Your appointment with Dr. "
-                        + appointment.getDoctor().getFirstName()
-                        + " "
-                        + appointment.getDoctor().getLastName()
-                        + " has been rejected.",
+                "Your appointment has been rejected",
                 NotificationType.APPOINTMENT_REJECTED
         );
 
-        return mapToResponse(updatedAppointment);
+        return map(saved);
     }
 
     @Override
@@ -157,38 +128,30 @@ public class AppointmentServiceImpl implements AppointmentService {
         Appointment appointment = getDoctorAppointment(appointmentId);
 
         if (appointment.getStatus() != AppointmentStatus.APPROVED) {
-            throw new BadRequestException("Only approved appointments can be completed.");
+            throw new BadRequestException("Only approved appointments can be completed");
         }
 
         appointment.setStatus(AppointmentStatus.COMPLETED);
-        Appointment updatedAppointment = appointmentRepository.save(appointment);
+        Appointment saved = appointmentRepository.save(appointment);
 
-        // Send notification to patient
         notificationService.createNotification(
                 appointment.getPatient().getUser().getId(),
-                "Your appointment with Dr. "
-                        + appointment.getDoctor().getFirstName()
-                        + " "
-                        + appointment.getDoctor().getLastName()
-                        + " has been completed.",
+                "Your appointment has been completed",
                 NotificationType.APPOINTMENT_COMPLETED
         );
 
-        return mapToResponse(updatedAppointment);
+        return map(saved);
     }
 
     @Override
     public List<AppointmentResponse> getMyAppointments() {
         Patient patient = getLoggedInPatient();
 
-        List<Appointment> appointments = appointmentRepository
-                .findByPatientIdOrderByAppointmentDateAscAppointmentTimeAsc(
-                        patient.getId()
-                );
-
-        return appointments.stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
+        return appointmentRepository
+                .findByPatientIdOrderByAppointmentDateAscAppointmentTimeAsc(patient.getId())
+                .stream()
+                .map(this::map)
+                .toList();
     }
 
     @Override
@@ -201,8 +164,8 @@ public class AppointmentServiceImpl implements AppointmentService {
                         LocalDate.now()
                 )
                 .stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
+                .map(this::map)
+                .toList();
     }
 
     @Override
@@ -210,13 +173,10 @@ public class AppointmentServiceImpl implements AppointmentService {
         Patient patient = getLoggedInPatient();
 
         return appointmentRepository
-                .findByPatientIdAndStatus(
-                        patient.getId(),
-                        AppointmentStatus.COMPLETED
-                )
+                .findByPatientIdAndStatus(patient.getId(), AppointmentStatus.COMPLETED)
                 .stream()
-                .map(this::mapToResponse)
-                .collect(Collectors.toList());
+                .map(this::map)
+                .toList();
     }
 
     @Override
@@ -225,72 +185,21 @@ public class AppointmentServiceImpl implements AppointmentService {
 
         Appointment appointment = appointmentRepository
                 .findByIdAndPatientId(appointmentId, patient.getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
-
-        if (appointment.getStatus() == AppointmentStatus.COMPLETED) {
-            throw new BadRequestException("Completed appointment cannot be cancelled");
-        }
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Appointment not found")
+                );
 
         appointment.setStatus(AppointmentStatus.CANCELLED);
-        Appointment saved = appointmentRepository.save(appointment);
 
-        // Send notification to doctor
-        notificationService.createNotification(
-                appointment.getDoctor().getUser().getId(),
-                "Appointment with "
-                        + patient.getFirstName()
-                        + " "
-                        + patient.getLastName()
-                        + " has been cancelled by the patient.",
-                NotificationType.APPOINTMENT_CANCELLED
-        );
-
-        return mapToResponse(saved);
+        return map(appointmentRepository.save(appointment));
     }
 
     @Override
     public AppointmentResponse doctorCancelAppointment(UUID appointmentId) {
-
-        String email = SecurityContextHolder
-                .getContext()
-                .getAuthentication()
-                .getName();
-
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
-
-        Doctor doctor = doctorRepository.findByUserId(user.getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Doctor profile not found"));
-
-        Appointment appointment = appointmentRepository
-                .findByIdAndDoctorId(
-                        appointmentId,
-                        doctor.getId()
-                )
-                .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
-
-        if (appointment.getStatus() != AppointmentStatus.APPROVED) {
-            throw new BadRequestException(
-                    "Only approved appointments can be cancelled by the doctor."
-            );
-        }
-
+        Appointment appointment = getDoctorAppointment(appointmentId);
         appointment.setStatus(AppointmentStatus.CANCELLED);
 
-        Appointment saved = appointmentRepository.save(appointment);
-
-        // Send notification to patient
-        notificationService.createNotification(
-                appointment.getPatient().getUser().getId(),
-                "Your appointment with Dr. "
-                        + doctor.getFirstName()
-                        + " "
-                        + doctor.getLastName()
-                        + " has been cancelled by the doctor.",
-                NotificationType.APPOINTMENT_CANCELLED
-        );
-
-        return mapToResponse(saved);
+        return map(appointmentRepository.save(appointment));
     }
 
     @Override
@@ -302,46 +211,165 @@ public class AppointmentServiceImpl implements AppointmentService {
 
         Appointment appointment = appointmentRepository
                 .findByIdAndPatientId(appointmentId, patient.getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Appointment not found"));
-
-        if (appointment.getStatus() == AppointmentStatus.COMPLETED) {
-            throw new BadRequestException("Completed appointment cannot be rescheduled");
-        }
-
-        // Check if the new slot is available
-        boolean slotBooked = appointmentRepository
-                .existsByDoctorIdAndAppointmentDateAndAppointmentTime(
-                        appointment.getDoctor().getId(),
-                        request.getAppointmentDate(),
-                        request.getAppointmentTime()
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Appointment not found")
                 );
-
-        if (slotBooked) {
-            throw new BadRequestException("The selected appointment slot is already booked.");
-        }
 
         appointment.setAppointmentDate(request.getAppointmentDate());
         appointment.setAppointmentTime(request.getAppointmentTime());
         appointment.setReason(request.getReason());
         appointment.setStatus(AppointmentStatus.PENDING);
 
-        Appointment saved = appointmentRepository.save(appointment);
-
-        // Send notification to doctor
-        notificationService.createNotification(
-                appointment.getDoctor().getUser().getId(),
-                "Appointment with "
-                        + patient.getFirstName()
-                        + " "
-                        + patient.getLastName()
-                        + " has been rescheduled.",
-                NotificationType.APPOINTMENT_RESCHEDULED
-        );
-
-        return mapToResponse(saved);
+        return map(appointmentRepository.save(appointment));
     }
 
-    // ✅ HELPER METHOD: Get logged-in patient
+    // ======================================================
+    // RECEPTIONIST: VIEW ALL HOSPITAL APPOINTMENTS
+    // ======================================================
+    @Override
+    public List<AppointmentResponse> getHospitalAppointments() {
+
+        String email = SecurityContextHolder
+                .getContext()
+                .getAuthentication()
+                .getName();
+
+        User receptionistUser = userRepository.findByEmail(email)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("User not found")
+                );
+
+        Receptionist receptionist = receptionistRepository
+                .findByUserId(receptionistUser.getId())
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Receptionist profile not found")
+                );
+
+        return appointmentRepository
+                .findByDoctorDepartmentHospitalId(receptionist.getHospital().getId())
+                .stream()
+                .map(this::map)
+                .toList();
+    }
+
+    // ======================================================
+    // RECEPTIONIST: FILTER APPOINTMENTS BY STATUS
+    // ======================================================
+    @Override
+    public List<AppointmentResponse> getHospitalAppointmentsByStatus(
+            AppointmentStatus status
+    ) {
+
+        String email = SecurityContextHolder
+                .getContext()
+                .getAuthentication()
+                .getName();
+
+        User receptionistUser = userRepository.findByEmail(email)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("User not found")
+                );
+
+        Receptionist receptionist = receptionistRepository
+                .findByUserId(receptionistUser.getId())
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Receptionist profile not found")
+                );
+
+        return appointmentRepository
+                .findByDoctorDepartmentHospitalIdAndStatus(
+                        receptionist.getHospital().getId(),
+                        status
+                )
+                .stream()
+                .map(this::map)
+                .toList();
+    }
+
+    // ======================================================
+    // RECEPTIONIST: CHECK-IN PATIENT
+    // ======================================================
+    @Override
+    public AppointmentResponse checkInPatient(UUID appointmentId) {
+
+        String email = SecurityContextHolder
+                .getContext()
+                .getAuthentication()
+                .getName();
+
+        User receptionistUser = userRepository.findByEmail(email)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("User not found")
+                );
+
+        Receptionist receptionist = receptionistRepository
+                .findByUserId(receptionistUser.getId())
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Receptionist profile not found")
+                );
+
+        Appointment appointment = appointmentRepository
+                .findById(appointmentId)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Appointment not found")
+                );
+
+        if (!appointment.getDoctor()
+                .getDepartment()
+                .getHospital()
+                .getId()
+                .equals(receptionist.getHospital().getId())) {
+
+            throw new BadRequestException(
+                    "Appointment does not belong to your hospital."
+            );
+        }
+
+        if (appointment.getStatus() != AppointmentStatus.APPROVED) {
+
+            throw new BadRequestException(
+                    "Only approved appointments can be checked in."
+            );
+        }
+
+        appointment.setStatus(AppointmentStatus.CHECKED_IN);
+
+        Appointment saved = appointmentRepository.save(appointment);
+
+        notificationService.createNotification(
+                appointment.getDoctor().getUser().getId(),
+                appointment.getPatient().getFirstName()
+                        + " "
+                        + appointment.getPatient().getLastName()
+                        + " has arrived.",
+                NotificationType.APPOINTMENT_APPROVED
+        );
+
+        return map(saved);
+    }
+
+    // ======================================================
+    // DOCTOR VIEW WAITING QUEUE
+    // ======================================================
+    @Override
+    public List<AppointmentResponse> getWaitingQueue() {
+
+        Doctor doctor = getLoggedInDoctor();
+
+        return appointmentRepository
+                .findByDoctorIdAndStatus(
+                        doctor.getId(),
+                        AppointmentStatus.CHECKED_IN
+                )
+                .stream()
+                .map(this::map)
+                .toList();
+    }
+
+    // ======================================================
+    // HELPER METHODS
+    // ======================================================
+
     private Patient getLoggedInPatient() {
         String email = SecurityContextHolder
                 .getContext()
@@ -349,49 +377,51 @@ public class AppointmentServiceImpl implements AppointmentService {
                 .getName();
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("User not found")
+                );
 
         return patientRepository.findByUserId(user.getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Patient profile not found"));
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Patient profile not found")
+                );
     }
 
-    // ✅ HELPER METHOD: Get current doctor
-    private Doctor getCurrentDoctor() {
+    private Doctor getLoggedInDoctor() {
         String email = SecurityContextHolder
                 .getContext()
                 .getAuthentication()
                 .getName();
 
         User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("User not found")
+                );
 
         return doctorRepository.findByUserId(user.getId())
-                .orElseThrow(() -> new ResourceNotFoundException("Doctor profile not found"));
-    }
-
-    // ✅ HELPER METHOD: Get doctor's appointment by ID
-    private Appointment getDoctorAppointment(UUID appointmentId) {
-        Doctor doctor = getCurrentDoctor();
-
-        return appointmentRepository
-                .findByIdAndDoctorId(
-                        appointmentId,
-                        doctor.getId()
-                )
                 .orElseThrow(() ->
-                        new ResourceNotFoundException(
-                                "Appointment not found or you don't have permission."
-                        )
+                        new ResourceNotFoundException("Doctor profile not found")
                 );
     }
 
-    // ✅ HELPER METHOD: Map Appointment to AppointmentResponse
-    private AppointmentResponse mapToResponse(Appointment appointment) {
+    private Appointment getDoctorAppointment(UUID id) {
+        Doctor doctor = getLoggedInDoctor();
+
+        return appointmentRepository
+                .findByIdAndDoctorId(id, doctor.getId())
+                .orElseThrow(() ->
+                        new ResourceNotFoundException("Appointment not found")
+                );
+    }
+
+    private AppointmentResponse map(Appointment appointment) {
         return new AppointmentResponse(
                 appointment.getId(),
-                appointment.getPatient().getFirstName() + " "
+                appointment.getPatient().getFirstName()
+                        + " "
                         + appointment.getPatient().getLastName(),
-                appointment.getDoctor().getFirstName() + " "
+                appointment.getDoctor().getFirstName()
+                        + " "
                         + appointment.getDoctor().getLastName(),
                 appointment.getAppointmentDate(),
                 appointment.getAppointmentTime(),

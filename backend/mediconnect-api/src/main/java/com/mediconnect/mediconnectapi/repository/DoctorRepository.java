@@ -50,4 +50,12 @@ public interface DoctorRepository extends JpaRepository<Doctor, UUID> {
             String hospital,
             Pageable pageable
     );
+    List<Doctor> findByDepartmentHospitalId(
+            UUID hospitalId
+    );
+
+    Optional<Doctor> findByIdAndDepartmentHospitalId(
+            UUID doctorId,
+            UUID hospitalId
+    );
 }
