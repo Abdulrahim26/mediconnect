@@ -17,6 +17,7 @@ import com.mediconnect.mediconnectapi.service.SearchService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.*;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 
@@ -30,6 +31,7 @@ public class SearchServiceImpl implements SearchService {
     private final AppointmentRepository appointmentRepository;
 
     @Override
+    @Transactional(readOnly = true)
     public Page<DoctorSearchResponse> searchDoctors(
             String firstName,
             String lastName,
@@ -62,6 +64,7 @@ public class SearchServiceImpl implements SearchService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Page<HospitalSearchResponse> searchHospitals(
             String name,
             String location,
@@ -85,6 +88,7 @@ public class SearchServiceImpl implements SearchService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Page<DepartmentSearchResponse> searchDepartments(
             String name,
             String hospital,
@@ -108,6 +112,7 @@ public class SearchServiceImpl implements SearchService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Page<AppointmentSearchResponse> searchAppointments(
             AppointmentStatus status,
             LocalDate date,

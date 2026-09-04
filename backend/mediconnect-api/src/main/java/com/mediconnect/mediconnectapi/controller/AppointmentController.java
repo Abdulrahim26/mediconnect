@@ -1,6 +1,7 @@
 package com.mediconnect.mediconnectapi.controller;
 
 import com.mediconnect.mediconnectapi.dto.request.CreateAppointmentRequest;
+import com.mediconnect.mediconnectapi.dto.request.RescheduleAppointmentRequest;
 import com.mediconnect.mediconnectapi.dto.response.AppointmentResponse;
 import com.mediconnect.mediconnectapi.entity.enums.AppointmentStatus;
 import com.mediconnect.mediconnectapi.service.AppointmentService;
@@ -83,13 +84,13 @@ public class AppointmentController {
     }
 
     // ======================================================
-    // PATIENT: RESCHEDULE APPOINTMENT
-    // ======================================================
+// PATIENT: RESCHEDULE APPOINTMENT
+// ======================================================
     @PreAuthorize("hasRole('PATIENT')")
     @PutMapping("/{id}/reschedule")
     public ResponseEntity<AppointmentResponse> rescheduleAppointment(
             @PathVariable UUID id,
-            @Valid @RequestBody CreateAppointmentRequest request
+            @Valid @RequestBody RescheduleAppointmentRequest request
     ) {
         return ResponseEntity.ok(
                 appointmentService.rescheduleAppointment(id, request)

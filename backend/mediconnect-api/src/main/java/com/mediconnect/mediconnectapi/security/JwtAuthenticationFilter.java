@@ -4,7 +4,9 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -30,40 +32,59 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
         final String authHeader = request.getHeader("Authorization");
 
-        // 🔍 DEBUG: Log the Authorization header
-        System.out.println("Authorization Header: " + authHeader);
-
-        final String jwt;
-        final String userEmail;
-
+        /*
+         * No Authorization header or not a Bearer token.
+         *
+         * This is normal for public endpoints such as:
+         * POST /api/auth/login
+         * POST /api/auth/register
+         */
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
-            System.out.println("❌ No Bearer token found in Authorization header");
             filterChain.doFilter(request, response);
             return;
         }
 
-        jwt = authHeader.substring(7);
+        final String jwt = authHeader.substring(7);
 
-        // 🔍 DEBUG: Log the extracted JWT
-        System.out.println("JWT: " + jwt);
+        /*
+         * Never log the JWT itself.
+         *
+         * A JWT is a credential and should not appear
+         * in application logs.
+         */
 
-        userEmail = jwtService.extractEmail(jwt);
+        try {
 
-        // 🔍 DEBUG: Log the extracted email
-        System.out.println("Email from token: " + userEmail);
+            /*
+             * First validate the token.
+             *
+             * This protects the application from malformed,
+             * expired, or incorrectly signed JWTs.
+             */
+            if (!jwtService.isTokenValid(jwt)) {
+                filterChain.doFilter(request, response);
+                return;
+            }
 
-        if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+            /*
+             * Only extract information from the token
+             * after validation succeeds.
+             */
+            final String userEmail = jwtService.extractEmail(jwt);
 
-            UserDetails userDetails = userDetailsService.loadUserByUsername(userEmail);
+            /*
+             * Only authenticate the request if Spring Security
+             * has not already authenticated the user.
+             */
+            if (
+                    userEmail != null &&
+                            SecurityContextHolder
+                                    .getContext()
+                                    .getAuthentication() == null
+            ) {
 
-            // 🔍 DEBUG: Log the loaded user
-            System.out.println("User loaded: " + userDetails.getUsername());
-            System.out.println("Authorities: " + userDetails.getAuthorities());
-
-            if (jwtService.isTokenValid(jwt)) {
-
-                // 🔍 DEBUG: Log before setting authentication
-                System.out.println("✅ JWT is valid. Setting SecurityContext...");
+                UserDetails userDetails =
+                        userDetailsService.loadUserByUsername(userEmail);
 
                 UsernamePasswordAuthenticationToken authToken =
                         new UsernamePasswordAuthenticationToken(
@@ -73,23 +94,25 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                         );
 
                 authToken.setDetails(
-                        new WebAuthenticationDetailsSource().buildDetails(request)
+                        new WebAuthenticationDetailsSource()
+                                .buildDetails(request)
                 );
 
-                SecurityContextHolder.getContext().setAuthentication(authToken);
+                SecurityContextHolder
+                        .getContext()
+                        .setAuthentication(authToken);
+            }
 
-                System.out.println("✅ Authentication set successfully for: " + userEmail);
-            } else {
-                System.out.println("❌ JWT is INVALID for: " + userEmail);
-            }
-        } else {
-            if (userEmail == null) {
-                System.out.println("❌ Could not extract email from JWT");
-            }
-            if (SecurityContextHolder.getContext().getAuthentication() != null) {
-                System.out.println("ℹ️ SecurityContext already has authentication: " +
-                        SecurityContextHolder.getContext().getAuthentication().getName());
-            }
+        } catch (Exception e) {
+
+            /*
+             * Invalid JWTs should not crash the application.
+             *
+             * We simply leave the request unauthenticated.
+             * Spring Security will then decide whether the
+             * requested endpoint requires authentication.
+             */
+            SecurityContextHolder.clearContext();
         }
 
         filterChain.doFilter(request, response);

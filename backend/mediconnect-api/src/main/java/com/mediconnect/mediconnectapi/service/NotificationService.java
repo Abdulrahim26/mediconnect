@@ -1,15 +1,12 @@
 package com.mediconnect.mediconnectapi.service;
 
-
 import com.mediconnect.mediconnectapi.dto.response.NotificationResponse;
 import com.mediconnect.mediconnectapi.entity.enums.NotificationType;
 
 import java.util.List;
 import java.util.UUID;
 
-
 public interface NotificationService {
-
 
     void createNotification(
             UUID userId,
@@ -17,10 +14,11 @@ public interface NotificationService {
             NotificationType type
     );
 
-
     List<NotificationResponse> getMyNotifications();
 
+    long getUnreadCount();
 
     void markAsRead(UUID notificationId);
 
+    void markAllAsRead();
 }

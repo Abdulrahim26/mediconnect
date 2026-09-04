@@ -26,5 +26,7 @@ public class DoctorResponse {
 
     private BigDecimal consultationFee;
 
+    private UUID departmentId;
+
     private String departmentName;
 }

@@ -1,6 +1,7 @@
 package com.mediconnect.mediconnectapi.service;
 
 import com.mediconnect.mediconnectapi.dto.request.CreateAppointmentRequest;
+import com.mediconnect.mediconnectapi.dto.request.RescheduleAppointmentRequest;
 import com.mediconnect.mediconnectapi.dto.response.AppointmentResponse;
 import com.mediconnect.mediconnectapi.entity.enums.AppointmentStatus;
 
@@ -33,7 +34,7 @@ public interface AppointmentService {
 
     AppointmentResponse rescheduleAppointment(
             UUID appointmentId,
-            CreateAppointmentRequest request
+            RescheduleAppointmentRequest request
     );
 
     // ======================================================

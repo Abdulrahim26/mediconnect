@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
@@ -29,6 +30,7 @@ public class MedicalRecordServiceImpl implements MedicalRecordService {
     private final UserRepository userRepository;
 
     @Override
+    @Transactional
     public MedicalRecordResponse createRecord(
             CreateMedicalRecordRequest request
     ) {
@@ -92,6 +94,7 @@ public class MedicalRecordServiceImpl implements MedicalRecordService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<MedicalRecordResponse> getPatientRecords() {
 
         String email = SecurityContextHolder
@@ -116,8 +119,8 @@ public class MedicalRecordServiceImpl implements MedicalRecordService {
                 .collect(Collectors.toList());
     }
 
-    // ✅ NEW: Doctor gets all records they created
     @Override
+    @Transactional(readOnly = true)
     public List<MedicalRecordResponse> getDoctorRecords() {
 
         String email = SecurityContextHolder
@@ -140,8 +143,8 @@ public class MedicalRecordServiceImpl implements MedicalRecordService {
                 .toList();
     }
 
-    // ✅ NEW: Doctor views one specific record
     @Override
+    @Transactional(readOnly = true)
     public MedicalRecordResponse getDoctorRecord(UUID recordId) {
 
         String email = SecurityContextHolder
@@ -165,8 +168,8 @@ public class MedicalRecordServiceImpl implements MedicalRecordService {
         return mapToResponse(record);
     }
 
-    // ✅ NEW: Doctor updates a record
     @Override
+    @Transactional
     public MedicalRecordResponse updateRecord(
             UUID recordId,
             CreateMedicalRecordRequest request
@@ -201,8 +204,8 @@ public class MedicalRecordServiceImpl implements MedicalRecordService {
         return mapToResponse(updated);
     }
 
-    // ✅ NEW: Patient views one specific record
     @Override
+    @Transactional(readOnly = true)
     public MedicalRecordResponse getPatientRecord(UUID recordId) {
 
         String email = SecurityContextHolder

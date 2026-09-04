@@ -1,4 +1,8 @@
-package com.mediconnect.mediconnectapi.dto.response;
+
+        package com.mediconnect.mediconnectapi.dto.response;
+
+import com.mediconnect.mediconnectapi.entity.enums.InsuranceProvider;
+import com.mediconnect.mediconnectapi.entity.enums.VerificationStatus;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
@@ -27,4 +31,31 @@ public class PatientProfileResponse {
     private String gender;
 
     private String address;
+
+    // ==========================================================
+    // GHANA CARD
+    // ==========================================================
+
+    private String ghanaCardPin;
+
+    private VerificationStatus ghanaCardVerificationStatus;
+
+    // ==========================================================
+    // NHIS
+    // ==========================================================
+
+    private String nhisNumber;
+
+    private VerificationStatus nhisVerificationStatus;
+
+    // ==========================================================
+    // INSURANCE
+    // ==========================================================
+
+    private InsuranceProvider insuranceProvider;
+
+    private Boolean isNhisLinkedToGhanaCard;
+
+    private String insuranceStatus;
 }
+

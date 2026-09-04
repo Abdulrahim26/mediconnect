@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -27,6 +28,7 @@ public class ReceptionistAppointmentServiceImpl
     private final UserRepository userRepository;
 
     @Override
+    @Transactional(readOnly = true)
     public List<AppointmentResponse> getHospitalAppointments() {
 
         String email = SecurityContextHolder
@@ -43,17 +45,17 @@ public class ReceptionistAppointmentServiceImpl
             throw new ResourceNotFoundException("Hospital not assigned");
         }
 
+        UUID hospitalId = receptionist.getHospital().getId();
+
         return appointmentRepository
-                .findByDoctorDepartmentHospitalId(
-                        receptionist.getHospital().getId()
-                )
+                .findByDoctorDepartmentHospitalId(hospitalId)
                 .stream()
                 .map(this::map)
                 .toList();
     }
 
-    // ✅ NEW: Search appointments with filters
     @Override
+    @Transactional(readOnly = true)
     public List<AppointmentResponse> searchAppointments(
             String patient,
             String doctor,
@@ -70,6 +72,10 @@ public class ReceptionistAppointmentServiceImpl
                 .orElseThrow(() ->
                         new ResourceNotFoundException("User not found")
                 );
+
+        if (receptionist.getHospital() == null) {
+            throw new ResourceNotFoundException("Hospital not assigned");
+        }
 
         UUID hospitalId = receptionist.getHospital().getId();
 

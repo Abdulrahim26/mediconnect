@@ -21,6 +21,7 @@ public class PatientServiceImpl implements PatientService {
     private final UserRepository userRepository;
 
     @Override
+    @Transactional(readOnly = true)
     public PatientProfileResponse getProfile() {
         Patient patient = getCurrentPatient();
         return mapToResponse(patient);
@@ -54,7 +55,9 @@ public class PatientServiceImpl implements PatientService {
                 .orElseThrow(() -> new ResourceNotFoundException("Patient profile not found"));
     }
 
+
     private PatientProfileResponse mapToResponse(Patient patient) {
+
         return new PatientProfileResponse(
                 patient.getId(),
                 patient.getFirstName(),
@@ -63,7 +66,22 @@ public class PatientServiceImpl implements PatientService {
                 patient.getPhone(),
                 patient.getDateOfBirth(),
                 patient.getGender(),
-                patient.getAddress()
+                patient.getAddress(),
+
+                // Ghana Card
+                patient.getGhanaCardPin(),
+                patient.getGhanaCardVerificationStatus(),
+
+                // NHIS
+                patient.getNhisNumber(),
+                patient.getNhisVerificationStatus(),
+
+                // Insurance
+                patient.getInsuranceProvider(),
+                patient.getIsNhisLinkedToGhanaCard(),
+                patient.getInsuranceStatus()
         );
     }
+
+
 }

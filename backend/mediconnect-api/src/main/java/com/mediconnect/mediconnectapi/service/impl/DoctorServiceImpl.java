@@ -2,6 +2,7 @@ package com.mediconnect.mediconnectapi.service.impl;
 
 import com.mediconnect.mediconnectapi.dto.request.CreateDoctorRequest;
 import com.mediconnect.mediconnectapi.dto.request.UpdateDoctorProfileRequest;
+import com.mediconnect.mediconnectapi.dto.request.UpdateDoctorRequest;
 import com.mediconnect.mediconnectapi.dto.response.DoctorResponse;
 import com.mediconnect.mediconnectapi.entity.*;
 import com.mediconnect.mediconnectapi.exception.BadRequestException;
@@ -12,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
@@ -30,6 +32,7 @@ public class DoctorServiceImpl implements DoctorService {
     // ======================================================
     // 1. CREATE DOCTOR (HOSPITAL ADMIN)
     // ======================================================
+    @Transactional
     @Override
     public DoctorResponse createDoctor(CreateDoctorRequest request) {
 
@@ -64,9 +67,17 @@ public class DoctorServiceImpl implements DoctorService {
 
         User savedUser = userRepository.save(doctorUser);
 
-        // Find department
-        Department department = departmentRepository.findById(request.getDepartmentId())
-                .orElseThrow(() -> new ResourceNotFoundException("Department not found"));
+        // Find department - SECURITY: Verify department belongs to admin's hospital
+        Department department = departmentRepository
+                .findByIdAndHospitalId(
+                        request.getDepartmentId(),
+                        hospitalAdmin.getHospital().getId()
+                )
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "Department not found in your hospital"
+                        )
+                );
 
         // Create doctor profile
         Doctor doctor = new Doctor();
@@ -96,6 +107,7 @@ public class DoctorServiceImpl implements DoctorService {
     // 2. GET ALL DOCTORS IN HOSPITAL
     // ======================================================
     @Override
+    @Transactional(readOnly = true)
     public List<DoctorResponse> getHospitalDoctors() {
 
         String email = SecurityContextHolder
@@ -128,6 +140,7 @@ public class DoctorServiceImpl implements DoctorService {
     // 3. GET SINGLE DOCTOR
     // ======================================================
     @Override
+    @Transactional(readOnly = true)
     public DoctorResponse getDoctor(UUID doctorId) {
 
         User hospitalAdmin = getCurrentHospitalAdmin();
@@ -147,8 +160,9 @@ public class DoctorServiceImpl implements DoctorService {
     // ======================================================
     // 4. UPDATE DOCTOR (HOSPITAL ADMIN)
     // ======================================================
+    @Transactional
     @Override
-    public DoctorResponse updateDoctor(UUID doctorId, CreateDoctorRequest request) {
+    public DoctorResponse updateDoctor(UUID doctorId, UpdateDoctorRequest request) {
 
         User hospitalAdmin = getCurrentHospitalAdmin();
 
@@ -161,19 +175,29 @@ public class DoctorServiceImpl implements DoctorService {
                         new ResourceNotFoundException("Doctor not found")
                 );
 
-        // Update doctor fields
+        // Update doctor fields (email is NOT updated here - it stays the same)
         doctor.setFirstName(request.getFirstName());
         doctor.setLastName(request.getLastName());
         doctor.setSpecialty(request.getSpecialty());
         doctor.setQualification(request.getQualification());
         doctor.setPhone(request.getPhone());
-        doctor.setEmail(request.getEmail());
+        // doctor.setEmail(request.getEmail()); // REMOVED: Email cannot be changed by admin
         doctor.setConsultationFee(request.getConsultationFee());
 
-        // Update department if changed
+        // Update department if changed - SECURITY: Verify department belongs to admin's hospital
         if (!doctor.getDepartment().getId().equals(request.getDepartmentId())) {
-            Department department = departmentRepository.findById(request.getDepartmentId())
-                    .orElseThrow(() -> new ResourceNotFoundException("Department not found"));
+
+            Department department = departmentRepository
+                    .findByIdAndHospitalId(
+                            request.getDepartmentId(),
+                            hospitalAdmin.getHospital().getId()
+                    )
+                    .orElseThrow(() ->
+                            new ResourceNotFoundException(
+                                    "Department not found in your hospital"
+                            )
+                    );
+
             doctor.setDepartment(department);
         }
 
@@ -185,6 +209,7 @@ public class DoctorServiceImpl implements DoctorService {
     // ======================================================
     // 5. DEACTIVATE DOCTOR
     // ======================================================
+    @Transactional
     @Override
     public String deactivateDoctor(UUID doctorId) {
 
@@ -209,6 +234,7 @@ public class DoctorServiceImpl implements DoctorService {
     // 6. DOCTOR VIEW OWN PROFILE
     // ======================================================
     @Override
+    @Transactional(readOnly = true)
     public DoctorResponse getMyProfile() {
 
         String email = SecurityContextHolder
@@ -233,6 +259,7 @@ public class DoctorServiceImpl implements DoctorService {
     // 7. DOCTOR UPDATE OWN PROFILE
     // ======================================================
     @Override
+    @Transactional
     public DoctorResponse updateMyProfile(UpdateDoctorProfileRequest request) {
 
         String email = SecurityContextHolder
@@ -296,6 +323,7 @@ public class DoctorServiceImpl implements DoctorService {
                 doctor.getPhone(),
                 doctor.getEmail(),
                 doctor.getConsultationFee(),
+                doctor.getDepartment().getId(),
                 doctor.getDepartment().getName()
         );
     }

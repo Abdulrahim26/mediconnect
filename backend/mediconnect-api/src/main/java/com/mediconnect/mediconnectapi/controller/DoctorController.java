@@ -2,6 +2,7 @@ package com.mediconnect.mediconnectapi.controller;
 
 import com.mediconnect.mediconnectapi.dto.request.CreateDoctorRequest;
 import com.mediconnect.mediconnectapi.dto.request.UpdateDoctorProfileRequest;
+import com.mediconnect.mediconnectapi.dto.request.UpdateDoctorRequest;
 import com.mediconnect.mediconnectapi.dto.response.DoctorResponse;
 import com.mediconnect.mediconnectapi.service.DoctorService;
 
@@ -67,7 +68,22 @@ public class DoctorController {
     }
 
     // ======================================================
-    // 4. DOCTOR VIEWS OWN PROFILE (/profile)
+    // 4. UPDATE DOCTOR (HOSPITAL ADMIN)
+    // ======================================================
+    @PreAuthorize("hasRole('HOSPITAL_ADMIN')")
+    @PutMapping("/{id}")
+    public ResponseEntity<DoctorResponse> updateDoctor(
+            @PathVariable UUID id,
+            @Valid @RequestBody UpdateDoctorRequest request
+    ) {
+
+        return ResponseEntity.ok(
+                doctorService.updateDoctor(id, request)
+        );
+    }
+
+    // ======================================================
+    // 5. DOCTOR VIEWS OWN PROFILE (/profile)
     // ====================================================== // id="new1"
     @PreAuthorize("hasRole('DOCTOR')")
     @GetMapping("/profile")
@@ -80,7 +96,7 @@ public class DoctorController {
     }
 
     // ======================================================
-    // 5. DOCTOR UPDATES OWN PROFILE (/profile)
+    // 6. DOCTOR UPDATES OWN PROFILE (/profile)
     // ====================================================== // id="new2"
     @PreAuthorize("hasRole('DOCTOR')")
     @PutMapping("/profile")
@@ -95,7 +111,7 @@ public class DoctorController {
     }
 
     // ======================================================
-    // 6. DOCTOR VIEWS OWN PROFILE (/me)
+    // 7. DOCTOR VIEWS OWN PROFILE (/me)
     // ====================================================== // id="me1"
     @PreAuthorize("hasRole('DOCTOR')")
     @GetMapping("/me")
@@ -108,7 +124,7 @@ public class DoctorController {
     }
 
     // ======================================================
-    // 7. DOCTOR UPDATES OWN PROFILE (/me)
+    // 8. DOCTOR UPDATES OWN PROFILE (/me)
     // ====================================================== // id="me2"
     @PreAuthorize("hasRole('DOCTOR')")
     @PutMapping("/me")
@@ -123,7 +139,7 @@ public class DoctorController {
     }
 
     // ======================================================
-    // 8. DEACTIVATE DOCTOR
+    // 9. DEACTIVATE DOCTOR
     // ====================================================== // id="9qk372"
     @PreAuthorize("hasRole('HOSPITAL_ADMIN')")
     @DeleteMapping("/{id}")

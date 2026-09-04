@@ -1,18 +1,29 @@
 package com.mediconnect.mediconnectapi.service.impl;
 
 import com.mediconnect.mediconnectapi.dto.request.CreateAppointmentRequest;
+import com.mediconnect.mediconnectapi.dto.request.RescheduleAppointmentRequest;
 import com.mediconnect.mediconnectapi.dto.response.AppointmentResponse;
-import com.mediconnect.mediconnectapi.entity.*;
+
+import com.mediconnect.mediconnectapi.entity.Appointment;
+import com.mediconnect.mediconnectapi.entity.Doctor;
+import com.mediconnect.mediconnectapi.entity.Patient;
+import com.mediconnect.mediconnectapi.entity.Receptionist;
+import com.mediconnect.mediconnectapi.entity.User;
+
 import com.mediconnect.mediconnectapi.entity.enums.AppointmentStatus;
 import com.mediconnect.mediconnectapi.entity.enums.NotificationType;
+import com.mediconnect.mediconnectapi.entity.enums.VerificationStatus;
 import com.mediconnect.mediconnectapi.exception.BadRequestException;
 import com.mediconnect.mediconnectapi.exception.ResourceNotFoundException;
+
 import com.mediconnect.mediconnectapi.repository.AppointmentRepository;
 import com.mediconnect.mediconnectapi.repository.DoctorRepository;
 import com.mediconnect.mediconnectapi.repository.PatientRepository;
 import com.mediconnect.mediconnectapi.repository.ReceptionistRepository;
 import com.mediconnect.mediconnectapi.repository.UserRepository;
+
 import com.mediconnect.mediconnectapi.service.AppointmentService;
+import com.mediconnect.mediconnectapi.service.EmailService;
 import com.mediconnect.mediconnectapi.service.NotificationService;
 
 import lombok.RequiredArgsConstructor;
@@ -35,6 +46,7 @@ public class AppointmentServiceImpl implements AppointmentService {
     private final UserRepository userRepository;
     private final ReceptionistRepository receptionistRepository;
     private final NotificationService notificationService;
+    private final EmailService emailService;
 
     @Override
     @Transactional
@@ -70,19 +82,44 @@ public class AppointmentServiceImpl implements AppointmentService {
 
         Appointment saved = appointmentRepository.save(appointment);
 
+        // In-app notification to doctor
         notificationService.createNotification(
                 doctor.getUser().getId(),
                 "New appointment request from "
                         + patient.getFirstName()
                         + " "
                         + patient.getLastName(),
-                NotificationType.APPOINTMENT_BOOKED
+                NotificationType.APPOINTMENT_CREATED
+        );
+
+        // In-app notification to hospital receptionists
+        notifyHospitalReceptionists(
+                appointment,
+                "New appointment booked by "
+                        + patient.getFirstName()
+                        + " "
+                        + patient.getLastName(),
+                NotificationType.APPOINTMENT_CREATED
+        );
+
+        // Email notification to doctor
+        emailService.sendAppointmentCreatedEmail(
+                doctor.getUser().getEmail(),
+                patient.getFirstName()
+                        + " "
+                        + patient.getLastName(),
+                doctor.getFirstName()
+                        + " "
+                        + doctor.getLastName(),
+                appointment.getAppointmentDate(),
+                appointment.getAppointmentTime()
         );
 
         return map(saved);
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<AppointmentResponse> getDoctorAppointments() {
         Doctor doctor = getLoggedInDoctor();
 
@@ -94,56 +131,110 @@ public class AppointmentServiceImpl implements AppointmentService {
     }
 
     @Override
+    @Transactional
     public AppointmentResponse approveAppointment(UUID appointmentId) {
         Appointment appointment = getDoctorAppointment(appointmentId);
         appointment.setStatus(AppointmentStatus.APPROVED);
         Appointment saved = appointmentRepository.save(appointment);
 
+        // In-app notification to patient
         notificationService.createNotification(
                 appointment.getPatient().getUser().getId(),
                 "Your appointment has been approved",
                 NotificationType.APPOINTMENT_APPROVED
         );
 
+        // Email notification to patient
+        emailService.sendAppointmentApprovedEmail(
+                appointment.getPatient().getUser().getEmail(),
+                appointment.getPatient().getFirstName()
+                        + " "
+                        + appointment.getPatient().getLastName(),
+                appointment.getDoctor().getFirstName()
+                        + " "
+                        + appointment.getDoctor().getLastName(),
+                appointment.getAppointmentDate(),
+                appointment.getAppointmentTime()
+        );
+
         return map(saved);
     }
 
     @Override
+    @Transactional
     public AppointmentResponse rejectAppointment(UUID appointmentId) {
         Appointment appointment = getDoctorAppointment(appointmentId);
         appointment.setStatus(AppointmentStatus.REJECTED);
         Appointment saved = appointmentRepository.save(appointment);
 
+        // In-app notification to patient
         notificationService.createNotification(
                 appointment.getPatient().getUser().getId(),
                 "Your appointment has been rejected",
                 NotificationType.APPOINTMENT_REJECTED
         );
 
-        return map(saved);
-    }
-
-    @Override
-    public AppointmentResponse completeAppointment(UUID appointmentId) {
-        Appointment appointment = getDoctorAppointment(appointmentId);
-
-        if (appointment.getStatus() != AppointmentStatus.APPROVED) {
-            throw new BadRequestException("Only approved appointments can be completed");
-        }
-
-        appointment.setStatus(AppointmentStatus.COMPLETED);
-        Appointment saved = appointmentRepository.save(appointment);
-
-        notificationService.createNotification(
-                appointment.getPatient().getUser().getId(),
-                "Your appointment has been completed",
-                NotificationType.APPOINTMENT_COMPLETED
+        // Email notification to patient
+        emailService.sendAppointmentRejectedEmail(
+                appointment.getPatient().getUser().getEmail(),
+                appointment.getPatient().getFirstName()
+                        + " "
+                        + appointment.getPatient().getLastName(),
+                appointment.getDoctor().getFirstName()
+                        + " "
+                        + appointment.getDoctor().getLastName(),
+                appointment.getAppointmentDate(),
+                appointment.getAppointmentTime()
         );
 
         return map(saved);
     }
 
     @Override
+    @Transactional
+    public AppointmentResponse completeAppointment(UUID appointmentId) {
+
+        Appointment appointment = getDoctorAppointment(appointmentId);
+
+        /*
+         * A patient must first be checked in by the receptionist
+         * before the doctor can complete the consultation.
+         */
+        if (appointment.getStatus() != AppointmentStatus.CHECKED_IN) {
+            throw new BadRequestException(
+                    "Only checked-in appointments can be completed"
+            );
+        }
+
+        appointment.setStatus(AppointmentStatus.COMPLETED);
+
+        Appointment saved = appointmentRepository.save(appointment);
+
+        // In-app notification to patient
+        notificationService.createNotification(
+                appointment.getPatient().getUser().getId(),
+                "Your appointment has been completed",
+                NotificationType.APPOINTMENT_COMPLETED
+        );
+
+        // Email notification to patient
+        emailService.sendAppointmentCompletedEmail(
+                appointment.getPatient().getUser().getEmail(),
+                appointment.getPatient().getFirstName()
+                        + " "
+                        + appointment.getPatient().getLastName(),
+                appointment.getDoctor().getFirstName()
+                        + " "
+                        + appointment.getDoctor().getLastName(),
+                appointment.getAppointmentDate(),
+                appointment.getAppointmentTime()
+        );
+
+        return map(saved);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<AppointmentResponse> getMyAppointments() {
         Patient patient = getLoggedInPatient();
 
@@ -155,6 +246,7 @@ public class AppointmentServiceImpl implements AppointmentService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<AppointmentResponse> getUpcomingAppointments() {
         Patient patient = getLoggedInPatient();
 
@@ -169,6 +261,7 @@ public class AppointmentServiceImpl implements AppointmentService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<AppointmentResponse> getAppointmentHistory() {
         Patient patient = getLoggedInPatient();
 
@@ -180,53 +273,198 @@ public class AppointmentServiceImpl implements AppointmentService {
     }
 
     @Override
+    @Transactional
     public AppointmentResponse cancelAppointment(UUID appointmentId) {
+
         Patient patient = getLoggedInPatient();
 
         Appointment appointment = appointmentRepository
-                .findByIdAndPatientId(appointmentId, patient.getId())
+                .findByIdAndPatientId(
+                        appointmentId,
+                        patient.getId()
+                )
                 .orElseThrow(() ->
                         new ResourceNotFoundException("Appointment not found")
                 );
 
         appointment.setStatus(AppointmentStatus.CANCELLED);
 
-        return map(appointmentRepository.save(appointment));
+        Appointment saved = appointmentRepository.save(appointment);
+
+        // In-app notification to doctor
+        notificationService.createNotification(
+                appointment.getDoctor().getUser().getId(),
+                "Appointment cancelled by "
+                        + patient.getFirstName()
+                        + " "
+                        + patient.getLastName(),
+                NotificationType.APPOINTMENT_CANCELLED
+        );
+
+        // In-app notification to hospital receptionists
+        notifyHospitalReceptionists(
+                appointment,
+                "Appointment cancelled by "
+                        + patient.getFirstName()
+                        + " "
+                        + patient.getLastName(),
+                NotificationType.APPOINTMENT_CANCELLED
+        );
+
+        // Email notification to doctor
+        emailService.sendAppointmentCancelledEmail(
+                appointment.getDoctor().getUser().getEmail(),
+                patient.getFirstName()
+                        + " "
+                        + patient.getLastName(),
+                appointment.getDoctor().getFirstName()
+                        + " "
+                        + appointment.getDoctor().getLastName(),
+                appointment.getAppointmentDate(),
+                appointment.getAppointmentTime(),
+                "Patient"
+        );
+
+        return map(saved);
     }
 
     @Override
+    @Transactional
     public AppointmentResponse doctorCancelAppointment(UUID appointmentId) {
+
         Appointment appointment = getDoctorAppointment(appointmentId);
+
         appointment.setStatus(AppointmentStatus.CANCELLED);
 
-        return map(appointmentRepository.save(appointment));
+        Appointment saved = appointmentRepository.save(appointment);
+
+        // In-app notification to patient
+        notificationService.createNotification(
+                appointment.getPatient().getUser().getId(),
+                "Your appointment has been cancelled by the doctor",
+                NotificationType.APPOINTMENT_CANCELLED
+        );
+
+        // In-app notification to hospital receptionists
+        notifyHospitalReceptionists(
+                appointment,
+                "Appointment cancelled by Dr. "
+                        + appointment.getDoctor().getFirstName()
+                        + " "
+                        + appointment.getDoctor().getLastName(),
+                NotificationType.APPOINTMENT_CANCELLED
+        );
+
+        // Email notification to patient
+        emailService.sendAppointmentCancelledEmail(
+                appointment.getPatient().getUser().getEmail(),
+                appointment.getPatient().getFirstName()
+                        + " "
+                        + appointment.getPatient().getLastName(),
+                appointment.getDoctor().getFirstName()
+                        + " "
+                        + appointment.getDoctor().getLastName(),
+                appointment.getAppointmentDate(),
+                appointment.getAppointmentTime(),
+                "Doctor"
+        );
+
+        return map(saved);
     }
 
     @Override
+    @Transactional
     public AppointmentResponse rescheduleAppointment(
             UUID appointmentId,
-            CreateAppointmentRequest request
+            RescheduleAppointmentRequest request
     ) {
         Patient patient = getLoggedInPatient();
 
         Appointment appointment = appointmentRepository
-                .findByIdAndPatientId(appointmentId, patient.getId())
+                .findByIdAndPatientId(
+                        appointmentId,
+                        patient.getId()
+                )
                 .orElseThrow(() ->
-                        new ResourceNotFoundException("Appointment not found")
+                        new ResourceNotFoundException(
+                                "Appointment not found"
+                        )
                 );
 
-        appointment.setAppointmentDate(request.getAppointmentDate());
-        appointment.setAppointmentTime(request.getAppointmentTime());
-        appointment.setReason(request.getReason());
-        appointment.setStatus(AppointmentStatus.PENDING);
+        boolean slotTaken =
+                appointmentRepository
+                        .existsByDoctorIdAndAppointmentDateAndAppointmentTime(
+                                appointment.getDoctor().getId(),
+                                request.getAppointmentDate(),
+                                request.getAppointmentTime()
+                        );
 
-        return map(appointmentRepository.save(appointment));
+        if (slotTaken &&
+                (!appointment.getAppointmentDate()
+                        .equals(request.getAppointmentDate())
+                        || !appointment.getAppointmentTime()
+                        .equals(request.getAppointmentTime()))) {
+
+            throw new BadRequestException(
+                    "The selected appointment slot is already booked"
+            );
+        }
+
+        appointment.setAppointmentDate(
+                request.getAppointmentDate()
+        );
+
+        appointment.setAppointmentTime(
+                request.getAppointmentTime()
+        );
+
+        appointment.setStatus(
+                AppointmentStatus.PENDING
+        );
+
+        Appointment saved = appointmentRepository.save(appointment);
+
+        // In-app notification to doctor
+        notificationService.createNotification(
+                appointment.getDoctor().getUser().getId(),
+                "An appointment has been rescheduled by "
+                        + patient.getFirstName()
+                        + " "
+                        + patient.getLastName(),
+                NotificationType.APPOINTMENT_RESCHEDULED
+        );
+
+        // In-app notification to hospital receptionists
+        notifyHospitalReceptionists(
+                appointment,
+                "An appointment has been rescheduled by "
+                        + patient.getFirstName()
+                        + " "
+                        + patient.getLastName(),
+                NotificationType.APPOINTMENT_RESCHEDULED
+        );
+
+        // Email notification to doctor
+        emailService.sendAppointmentRescheduledEmail(
+                appointment.getDoctor().getUser().getEmail(),
+                patient.getFirstName()
+                        + " "
+                        + patient.getLastName(),
+                appointment.getDoctor().getFirstName()
+                        + " "
+                        + appointment.getDoctor().getLastName(),
+                appointment.getAppointmentDate(),
+                appointment.getAppointmentTime()
+        );
+
+        return map(saved);
     }
 
     // ======================================================
     // RECEPTIONIST: VIEW ALL HOSPITAL APPOINTMENTS
     // ======================================================
     @Override
+    @Transactional(readOnly = true)
     public List<AppointmentResponse> getHospitalAppointments() {
 
         String email = SecurityContextHolder
@@ -256,6 +494,7 @@ public class AppointmentServiceImpl implements AppointmentService {
     // RECEPTIONIST: FILTER APPOINTMENTS BY STATUS
     // ======================================================
     @Override
+    @Transactional(readOnly = true)
     public List<AppointmentResponse> getHospitalAppointmentsByStatus(
             AppointmentStatus status
     ) {
@@ -290,6 +529,7 @@ public class AppointmentServiceImpl implements AppointmentService {
     // RECEPTIONIST: CHECK-IN PATIENT
     // ======================================================
     @Override
+    @Transactional
     public AppointmentResponse checkInPatient(UUID appointmentId) {
 
         String email = SecurityContextHolder
@@ -314,6 +554,9 @@ public class AppointmentServiceImpl implements AppointmentService {
                         new ResourceNotFoundException("Appointment not found")
                 );
 
+        // ======================================================
+        // 1. APPOINTMENT MUST BELONG TO RECEPTIONIST'S HOSPITAL
+        // ======================================================
         if (!appointment.getDoctor()
                 .getDepartment()
                 .getHospital()
@@ -325,17 +568,54 @@ public class AppointmentServiceImpl implements AppointmentService {
             );
         }
 
-        if (appointment.getStatus() != AppointmentStatus.APPROVED) {
+        // ======================================================
+        // 2. APPOINTMENT MUST BE APPROVED
+        // ======================================================
+        if (appointment.getStatus()
+                != AppointmentStatus.APPROVED) {
 
             throw new BadRequestException(
                     "Only approved appointments can be checked in."
             );
         }
 
-        appointment.setStatus(AppointmentStatus.CHECKED_IN);
+        // ======================================================
+        // 3. PATIENT IDENTITY MUST BE VERIFIED
+        // ======================================================
+        Patient patient = appointment.getPatient();
 
-        Appointment saved = appointmentRepository.save(appointment);
+        boolean ghanaCardVerified =
+                patient.getGhanaCardVerificationStatus()
+                        == VerificationStatus.VERIFIED;
 
+        boolean nhisVerified =
+                patient.getNhisVerificationStatus()
+                        == VerificationStatus.VERIFIED;
+
+        boolean identityVerified =
+                ghanaCardVerified || nhisVerified;
+
+        if (!identityVerified) {
+
+            throw new BadRequestException(
+                    "Patient identity must be verified "
+                            + "before check-in."
+            );
+        }
+
+        // ======================================================
+        // 4. CHECK IN PATIENT
+        // ======================================================
+        appointment.setStatus(
+                AppointmentStatus.CHECKED_IN
+        );
+
+        Appointment saved =
+                appointmentRepository.save(appointment);
+
+        // ======================================================
+        // 5. NOTIFY DOCTOR
+        // ======================================================
         notificationService.createNotification(
                 appointment.getDoctor().getUser().getId(),
                 appointment.getPatient().getFirstName()
@@ -352,6 +632,7 @@ public class AppointmentServiceImpl implements AppointmentService {
     // DOCTOR VIEW WAITING QUEUE
     // ======================================================
     @Override
+    @Transactional(readOnly = true)
     public List<AppointmentResponse> getWaitingQueue() {
 
         Doctor doctor = getLoggedInDoctor();
@@ -412,6 +693,33 @@ public class AppointmentServiceImpl implements AppointmentService {
                 .orElseThrow(() ->
                         new ResourceNotFoundException("Appointment not found")
                 );
+    }
+
+    /**
+     * Notify all receptionists in the hospital where the appointment belongs.
+     */
+    private void notifyHospitalReceptionists(
+            Appointment appointment,
+            String message,
+            NotificationType notificationType
+    ) {
+
+        UUID hospitalId = appointment.getDoctor()
+                .getDepartment()
+                .getHospital()
+                .getId();
+
+        List<Receptionist> receptionists =
+                receptionistRepository.findByHospitalId(hospitalId);
+
+        for (Receptionist receptionist : receptionists) {
+
+            notificationService.createNotification(
+                    receptionist.getUser().getId(),
+                    message,
+                    notificationType
+            );
+        }
     }
 
     private AppointmentResponse map(Appointment appointment) {

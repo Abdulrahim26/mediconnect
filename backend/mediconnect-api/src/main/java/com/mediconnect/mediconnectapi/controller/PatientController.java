@@ -1,12 +1,16 @@
 package com.mediconnect.mediconnectapi.controller;
 
 import com.mediconnect.mediconnectapi.dto.request.CreateAppointmentRequest;
+import com.mediconnect.mediconnectapi.dto.request.RescheduleAppointmentRequest;
 import com.mediconnect.mediconnectapi.dto.request.UpdatePatientProfileRequest;
 import com.mediconnect.mediconnectapi.dto.response.AppointmentResponse;
 import com.mediconnect.mediconnectapi.dto.response.PatientProfileResponse;
 import com.mediconnect.mediconnectapi.service.AppointmentService;
 import com.mediconnect.mediconnectapi.service.PatientService;
+
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -30,7 +34,7 @@ public class PatientController {
 
     @PutMapping("/profile")
     public ResponseEntity<PatientProfileResponse> updateProfile(
-            @RequestBody UpdatePatientProfileRequest request
+            @Valid @RequestBody UpdatePatientProfileRequest request
     ) {
         return ResponseEntity.ok(
                 patientService.updateProfile(request)
@@ -70,7 +74,7 @@ public class PatientController {
     @PutMapping("/appointments/{id}/reschedule")
     public ResponseEntity<AppointmentResponse> reschedule(
             @PathVariable UUID id,
-            @RequestBody CreateAppointmentRequest request
+            @Valid @RequestBody RescheduleAppointmentRequest request
     ) {
         return ResponseEntity.ok(
                 appointmentService.rescheduleAppointment(id, request)

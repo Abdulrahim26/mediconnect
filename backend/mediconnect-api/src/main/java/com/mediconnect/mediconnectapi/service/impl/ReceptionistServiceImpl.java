@@ -20,6 +20,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
@@ -38,6 +39,7 @@ public class ReceptionistServiceImpl
     // 1. CREATE RECEPTIONIST (HOSPITAL ADMIN)
     // ======================================================
     @Override
+    @Transactional
     public ReceptionistResponse createReceptionist(
             CreateReceptionistRequest request
     ) {
@@ -95,6 +97,7 @@ public class ReceptionistServiceImpl
     // 2. GET ALL RECEPTIONISTS IN HOSPITAL (HOSPITAL ADMIN)
     // ======================================================
     @Override
+    @Transactional(readOnly = true)
     public List<ReceptionistResponse> getMyHospitalReceptionists() {
 
         String email = SecurityContextHolder
@@ -124,6 +127,7 @@ public class ReceptionistServiceImpl
     // 3. RECEPTIONIST VIEW OWN PROFILE
     // ======================================================
     @Override
+    @Transactional(readOnly = true)
     public ReceptionistResponse getMyProfile() {
 
         String email = SecurityContextHolder
@@ -148,6 +152,7 @@ public class ReceptionistServiceImpl
     // 4. RECEPTIONIST UPDATE OWN PROFILE
     // ======================================================
     @Override
+    @Transactional
     public ReceptionistResponse updateMyProfile(
             UpdateReceptionistProfileRequest request
     ) {

@@ -1,6 +1,5 @@
 package com.mediconnect.mediconnectapi.service.impl;
 
-
 import com.mediconnect.mediconnectapi.dto.response.ReceptionistDashboardResponse;
 import com.mediconnect.mediconnectapi.entity.User;
 import com.mediconnect.mediconnectapi.entity.enums.AppointmentStatus;
@@ -13,31 +12,25 @@ import lombok.RequiredArgsConstructor;
 
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
-
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
 public class ReceptionistDashboardServiceImpl
         implements ReceptionistDashboardService {
 
-
     private final UserRepository userRepository;
-
     private final AppointmentRepository appointmentRepository;
 
-
-
     @Override
+    @Transactional(readOnly = true)
     public ReceptionistDashboardResponse getDashboard() {
-
 
         String email =
                 SecurityContextHolder
                         .getContext()
                         .getAuthentication()
                         .getName();
-
-
 
         User receptionist =
                 userRepository.findByEmail(email)
@@ -47,22 +40,15 @@ public class ReceptionistDashboardServiceImpl
                                 )
                         );
 
-
-
-        if(receptionist.getHospital() == null){
+        if (receptionist.getHospital() == null) {
 
             throw new ResourceNotFoundException(
                     "Hospital not assigned"
             );
-
         }
-
-
 
         var hospitalId =
                 receptionist.getHospital().getId();
-
-
 
         return new ReceptionistDashboardResponse(
 
@@ -98,7 +84,5 @@ public class ReceptionistDashboardServiceImpl
                         )
 
         );
-
     }
-
 }

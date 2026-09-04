@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.UUID;
@@ -24,78 +25,156 @@ public class NotificationServiceImpl implements NotificationService {
     private final NotificationRepository notificationRepository;
     private final UserRepository userRepository;
 
+    // ======================================================
+    // CREATE NOTIFICATION
+    // ======================================================
+
     @Override
+    @Transactional
     public void createNotification(
             UUID userId,
             String message,
             NotificationType type
     ) {
-        // 🔍 Debug: Confirm method is entered
-        System.out.println("NotificationService.createNotification() called");
 
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "User not found"
+                        )
+                );
 
         Notification notification = new Notification();
+
         notification.setUser(user);
         notification.setMessage(message);
         notification.setType(type);
         notification.setReadStatus(false);
 
-        // 🔍 Debug: Before saving
-        System.out.println("Saving notification for user: " + user.getEmail());
-
         notificationRepository.save(notification);
-
-        // 🔍 Debug: After saving
-        System.out.println("Notification saved successfully");
     }
+
+    // ======================================================
+    // GET MY NOTIFICATIONS
+    // ======================================================
 
     @Override
     public List<NotificationResponse> getMyNotifications() {
 
-        String email = SecurityContextHolder
-                .getContext()
-                .getAuthentication()
-                .getName();
-
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        User user = getLoggedInUser();
 
         return notificationRepository
-                .findByUserId(user.getId())
+                .findByUserIdOrderByCreatedAtDesc(user.getId())
                 .stream()
-                .map(notification ->
-                        new NotificationResponse(
-                                notification.getId(),
-                                notification.getMessage(),
-                                notification.getType(),
-                                notification.isReadStatus(),
-                                notification.getCreatedAt()
-                        )
-                )
+                .map(this::map)
                 .toList();
     }
 
+    // ======================================================
+    // GET UNREAD COUNT
+    // ======================================================
+
     @Override
+    public long getUnreadCount() {
+
+        User user = getLoggedInUser();
+
+        return notificationRepository
+                .countByUserIdAndReadStatusFalse(
+                        user.getId()
+                );
+    }
+
+    // ======================================================
+    // MARK ONE AS READ
+    // ======================================================
+
+    @Override
+    @Transactional
     public void markAsRead(UUID notificationId) {
+
+        User user = getLoggedInUser();
+
+        Notification notification =
+                notificationRepository
+                        .findById(notificationId)
+                        .orElseThrow(() ->
+                                new ResourceNotFoundException(
+                                        "Notification not found"
+                                )
+                        );
+
+        if (!notification.getUser()
+                .getId()
+                .equals(user.getId())) {
+
+            throw new RuntimeException(
+                    "You cannot update this notification"
+            );
+        }
+
+        notification.setReadStatus(true);
+
+        notificationRepository.save(notification);
+    }
+
+    // ======================================================
+    // MARK ALL AS READ
+    // ======================================================
+
+    @Override
+    @Transactional
+    public void markAllAsRead() {
+
+        User user = getLoggedInUser();
+
+        List<Notification> notifications =
+                notificationRepository
+                        .findByUserIdAndReadStatusFalseOrderByCreatedAtDesc(
+                                user.getId()
+                        );
+
+        for (Notification notification : notifications) {
+            notification.setReadStatus(true);
+        }
+
+        notificationRepository.saveAll(notifications);
+    }
+
+    // ======================================================
+    // GET LOGGED-IN USER
+    // ======================================================
+
+    private User getLoggedInUser() {
 
         String email = SecurityContextHolder
                 .getContext()
                 .getAuthentication()
                 .getName();
 
-        User user = userRepository.findByEmail(email)
-                .orElseThrow(() -> new ResourceNotFoundException("User not found"));
+        return userRepository
+                .findByEmail(email)
+                .orElseThrow(() ->
+                        new ResourceNotFoundException(
+                                "User not found"
+                        )
+                );
+    }
 
-        Notification notification = notificationRepository.findById(notificationId)
-                .orElseThrow(() -> new ResourceNotFoundException("Notification not found"));
+    // ======================================================
+    // MAP ENTITY → RESPONSE
+    // ======================================================
 
-        if (!notification.getUser().getId().equals(user.getId())) {
-            throw new RuntimeException("You cannot update this notification");
-        }
+    private NotificationResponse map(
+            Notification notification
+    ) {
 
-        notification.setReadStatus(true);
-        notificationRepository.save(notification);
+        return new NotificationResponse(
+                notification.getId(),
+                notification.getMessage(),
+                notification.getType(),
+                notification.isReadStatus(),
+                notification.getCreatedAt()
+        );
     }
 }

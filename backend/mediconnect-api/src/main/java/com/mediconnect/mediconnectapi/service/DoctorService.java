@@ -2,6 +2,7 @@ package com.mediconnect.mediconnectapi.service;
 
 import com.mediconnect.mediconnectapi.dto.request.CreateDoctorRequest;
 import com.mediconnect.mediconnectapi.dto.request.UpdateDoctorProfileRequest;
+import com.mediconnect.mediconnectapi.dto.request.UpdateDoctorRequest;
 import com.mediconnect.mediconnectapi.dto.response.DoctorResponse;
 
 import java.util.List;
@@ -33,7 +34,7 @@ public interface DoctorService {
     // ====================================================== // id="vgrr1o"
     DoctorResponse updateDoctor(
             UUID doctorId,
-            CreateDoctorRequest request
+            UpdateDoctorRequest request
     );
 
     // ======================================================
