@@ -5,6 +5,7 @@ import com.mediconnect.mediconnectapi.dto.response.DepartmentResponse;
 import com.mediconnect.mediconnectapi.entity.Department;
 import com.mediconnect.mediconnectapi.entity.User;
 import com.mediconnect.mediconnectapi.repository.DepartmentRepository;
+import com.mediconnect.mediconnectapi.repository.DoctorRepository;
 import com.mediconnect.mediconnectapi.repository.UserRepository;
 import com.mediconnect.mediconnectapi.service.DepartmentService;
 
@@ -19,13 +20,15 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.UUID;
+
 @Service
 @RequiredArgsConstructor
 public class DepartmentServiceImpl
         implements DepartmentService {
 
     private final DepartmentRepository departmentRepository;
-
+    private final DoctorRepository doctorRepository;
     private final UserRepository userRepository;
 
     @Override
@@ -119,6 +122,116 @@ public class DepartmentServiceImpl
         return departments.map(
                 this::convertToResponse
         );
+    }
+
+    @Override
+    @Transactional
+    public DepartmentResponse updateDepartment(
+            UUID departmentId,
+            CreateDepartmentRequest request
+    ) {
+
+        User user = getAuthenticatedUser();
+
+        if (user.getHospital() == null) {
+
+            throw new RuntimeException(
+                    "User is not assigned to a hospital"
+            );
+        }
+
+        Department department =
+                departmentRepository
+                        .findByIdAndHospitalId(
+                                departmentId,
+                                user.getHospital().getId()
+                        )
+                        .orElseThrow(
+                                () -> new RuntimeException(
+                                        "Department not found in your hospital"
+                                )
+                        );
+
+        boolean nameChanged =
+                !department.getName().equalsIgnoreCase(
+                        request.getName().trim()
+                );
+
+        if (nameChanged) {
+
+            boolean exists =
+                    departmentRepository
+                            .existsByNameAndHospitalId(
+                                    request.getName().trim(),
+                                    user.getHospital().getId()
+                            );
+
+            if (exists) {
+
+                throw new RuntimeException(
+                        "Department already exists in this hospital"
+                );
+            }
+        }
+
+        department.setName(
+                request.getName().trim()
+        );
+
+        department.setDescription(
+                request.getDescription()
+        );
+
+        Department updated =
+                departmentRepository.save(department);
+
+        return convertToResponse(updated);
+    }
+
+    @Override
+    @Transactional
+    public void deleteDepartment(UUID departmentId) {
+
+        User user = getAuthenticatedUser();
+
+        if (user.getHospital() == null) {
+
+            throw new RuntimeException(
+                    "User is not assigned to a hospital"
+            );
+        }
+
+        Department department =
+                departmentRepository
+                        .findByIdAndHospitalId(
+                                departmentId,
+                                user.getHospital().getId()
+                        )
+                        .orElseThrow(
+                                () -> new RuntimeException(
+                                        "Department not found in your hospital"
+                                )
+                        );
+
+        long doctorCount =
+                doctorRepository.countByDepartmentId(
+                        departmentId
+                );
+
+        if (doctorCount > 0) {
+            throw new RuntimeException(
+                    "Cannot delete this department because "
+                            + doctorCount
+                            + " doctor"
+                            + (doctorCount == 1 ? " is" : "s are")
+                            + " currently assigned to it. "
+                            + "Please reassign the doctor"
+                            + (doctorCount == 1 ? "" : "s")
+                            + " first."
+            );
+        }
+
+        departmentRepository.delete(department);
     }
 
     private User getAuthenticatedUser() {

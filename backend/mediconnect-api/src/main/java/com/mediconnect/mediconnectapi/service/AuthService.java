@@ -9,6 +9,7 @@ import com.mediconnect.mediconnectapi.entity.PasswordResetToken;
 import com.mediconnect.mediconnectapi.entity.Patient;
 import com.mediconnect.mediconnectapi.entity.Role;
 import com.mediconnect.mediconnectapi.entity.User;
+import com.mediconnect.mediconnectapi.entity.enums.InsuranceProvider;
 import com.mediconnect.mediconnectapi.exception.BadRequestException;
 import com.mediconnect.mediconnectapi.exception.ResourceNotFoundException;
 import com.mediconnect.mediconnectapi.repository.PasswordResetTokenRepository;
@@ -59,6 +60,27 @@ public class AuthService {
         patient.setFirstName(request.getFirstName());
         patient.setLastName(request.getLastName());
         patient.setUser(user);
+
+        // Set additional patient fields
+        patient.setPhone(request.getPhone());
+        patient.setDateOfBirth(request.getDateOfBirth());
+        patient.setGender(request.getGender());
+        patient.setAddress(request.getAddress());
+
+        patient.setGhanaCardPin(request.getGhanaCardPin());
+        patient.setNhisNumber(request.getNhisNumber());
+
+        if (request.getInsuranceProvider() != null
+                && !request.getInsuranceProvider().isBlank()) {
+
+            patient.setInsuranceProvider(
+                    InsuranceProvider.valueOf(
+                            request.getInsuranceProvider()
+                                    .trim()
+                                    .toUpperCase()
+                    )
+            );
+        }
 
         // Save Patient
         patientRepository.save(patient);

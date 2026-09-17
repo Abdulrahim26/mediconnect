@@ -17,6 +17,7 @@ public interface SearchService {
             String specialty,
             String department,
             String hospital,
+            String location,
             int page,
             int size,
             String sortBy

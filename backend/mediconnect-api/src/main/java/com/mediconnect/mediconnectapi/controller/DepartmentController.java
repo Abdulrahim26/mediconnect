@@ -16,15 +16,14 @@ import org.springframework.security.access.prepost.PreAuthorize;
 
 import org.springframework.web.bind.annotation.*;
 
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/departments")
 @RequiredArgsConstructor
 public class DepartmentController {
 
-
     private final DepartmentService departmentService;
-
 
     @PreAuthorize("hasRole('HOSPITAL_ADMIN')")
     @PostMapping
@@ -36,7 +35,6 @@ public class DepartmentController {
                 departmentService.createDepartment(request)
         );
     }
-
 
     @PreAuthorize("hasRole('HOSPITAL_ADMIN')")
     @GetMapping
@@ -66,5 +64,33 @@ public class DepartmentController {
                         search
                 )
         );
+    }
+
+    @PreAuthorize("hasRole('HOSPITAL_ADMIN')")
+    @PutMapping("/{departmentId}")
+    public ResponseEntity<DepartmentResponse> updateDepartment(
+            @PathVariable UUID departmentId,
+            @Valid @RequestBody CreateDepartmentRequest request
+    ) {
+
+        return ResponseEntity.ok(
+                departmentService.updateDepartment(
+                        departmentId,
+                        request
+                )
+        );
+    }
+
+    @PreAuthorize("hasRole('HOSPITAL_ADMIN')")
+    @DeleteMapping("/{departmentId}")
+    public ResponseEntity<Void> deleteDepartment(
+            @PathVariable UUID departmentId
+    ) {
+
+        departmentService.deleteDepartment(
+                departmentId
+        );
+
+        return ResponseEntity.noContent().build();
     }
 }

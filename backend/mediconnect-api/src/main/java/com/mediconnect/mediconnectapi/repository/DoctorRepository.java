@@ -19,6 +19,8 @@ public interface DoctorRepository extends JpaRepository<Doctor, UUID> {
 
     List<Doctor> findByDepartmentId(UUID departmentId);
 
+    long countByDepartmentId(UUID departmentId);
+
     long countByDepartmentHospitalId(UUID hospitalId);
 
     // Search by doctor's first name
@@ -50,6 +52,13 @@ public interface DoctorRepository extends JpaRepository<Doctor, UUID> {
             String hospital,
             Pageable pageable
     );
+
+    // Search by location
+    Page<Doctor> findByDepartmentHospitalLocationContainingIgnoreCase(
+            String location,
+            Pageable pageable
+    );
+
     List<Doctor> findByDepartmentHospitalId(
             UUID hospitalId
     );

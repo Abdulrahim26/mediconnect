@@ -38,6 +38,9 @@ public class SearchController {
             @RequestParam(required = false)
             String hospital,
 
+            @RequestParam(required = false)
+            String location,
+
             @RequestParam(defaultValue = "0")
             int page,
 
@@ -62,6 +65,8 @@ public class SearchController {
                         department,
 
                         hospital,
+
+                        location,
 
                         page,
 

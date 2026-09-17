@@ -38,6 +38,7 @@ public class SearchServiceImpl implements SearchService {
             String specialty,
             String department,
             String hospital,
+            String location,
             int page,
             int size,
             String sortBy
@@ -56,6 +57,8 @@ public class SearchServiceImpl implements SearchService {
             doctors = doctorRepository.findByDepartmentNameContainingIgnoreCase(department, pageable);
         } else if (hospital != null) {
             doctors = doctorRepository.findByDepartmentHospitalNameContainingIgnoreCase(hospital, pageable);
+        } else if (location != null) {
+            doctors = doctorRepository.findByDepartmentHospitalLocationContainingIgnoreCase(location, pageable);
         } else {
             doctors = doctorRepository.findAll(pageable);
         }
